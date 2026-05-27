@@ -13,6 +13,8 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.1054.0",
+    "@aws-sdk/lib-dynamodb": "^3.1054.0",
     "uuid": "^14.0.0"
   },
   "devDependencies": {

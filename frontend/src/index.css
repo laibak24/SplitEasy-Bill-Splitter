@@ -1,59 +1,49 @@
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,300&family=DM+Serif+Display:ital@0;1&display=swap');
 
 :root {
-  /* Brand */
-  --color-ink:        #1a1a1a;
-  --color-ink-mid:    #555555;
-  --color-ink-light:  #999999;
-  --color-ink-faint:  #cccccc;
+  --ink:          #111111;
+  --ink-mid:      #555555;
+  --ink-light:    #999999;
+  --ink-faint:    #C8C5BF;
 
-  /* Surface */
-  --color-bg:         #F9F8F6;
-  --color-surface:    #ffffff;
-  --color-border:     #E8E6E1;
-  --color-border-mid: #E0DDD8;
-  --color-hover:      #F4F3F0;
+  --surface:      #FFFFFF;
+  --surface-warm: #FAFAF8;
+  --surface-mid:  #F4F2EE;
 
-  /* Accent — subtle warm violet */
-  --color-accent:     #6B5CE7;
-  --color-accent-soft:#EEE9FF;
+  --border:       #E8E5DF;
+  --border-mid:   #D8D4CC;
 
-  /* Status */
-  --color-error-bg:   #FFF5F5;
-  --color-error-bd:   #FED7D7;
-  --color-error-txt:  #C53030;
-  --color-ok-bg:      #F0FFF4;
-  --color-ok-bd:      #C6F6D5;
-  --color-ok-txt:     #276749;
+  --accent-green: #22C55E;   /* same green family as the 💸 logo gem */
+  --accent-bg:    #F0FDF4;
 
-  /* Typography */
+  --err-bg:  #FFF5F5;
+  --err-bd:  #FED7D7;
+  --err-txt: #C53030;
+  --ok-bg:   #F0FFF4;
+  --ok-bd:   #C6F6D5;
+  --ok-txt:  #276749;
+
   --font-sans:  'DM Sans', system-ui, sans-serif;
   --font-serif: 'DM Serif Display', Georgia, serif;
 
-  /* Radius */
   --r-sm:  6px;
   --r-md:  10px;
   --r-lg:  14px;
-  --r-xl:  20px;
 
-  /* Shadows */
-  --shadow-card: 0 1px 3px rgba(0,0,0,0.04), 0 6px 28px rgba(0,0,0,0.06);
-  --shadow-nav:  0 1px 0 var(--color-border);
+  --shadow-card: 0 1px 2px rgba(0,0,0,0.04), 0 8px 32px rgba(0,0,0,0.07);
 
-  font: 16px/1.5 var(--font-sans);
-  color: var(--color-ink);
-  background: var(--color-bg);
+  font: 16px/1.6 var(--font-sans);
+  color: var(--ink);
+  background: var(--surface-warm);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
-  color-scheme: light;
 }
 
 *, *::before, *::after { box-sizing: border-box; }
-
 body { margin: 0; }
 
-/* ── Remove the narrow 1126px constraint from the Vite default ── */
+/* ── Kill the 1126px vite default ── */
 #root {
   width: 100%;
   max-width: 100%;
@@ -63,14 +53,19 @@ body { margin: 0; }
   display: block;
 }
 
+/* ── Number input: hide arrows ── */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+input[type="number"] { -moz-appearance: textfield; }
+
 /* ── Scrollbar ── */
-::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar { width: 5px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--color-border); border-radius: 3px; }
+::-webkit-scrollbar-thumb { background: var(--border-mid); border-radius: 3px; }
 
 /* ── Global keyframes ── */
 @keyframes fadeUp {
-  from { opacity: 0; transform: translateY(18px); }
+  from { opacity: 0; transform: translateY(20px); }
   to   { opacity: 1; transform: translateY(0); }
 }
 @keyframes fadeIn {
@@ -80,20 +75,24 @@ body { margin: 0; }
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
-@keyframes slideIn {
-  from { opacity: 0; transform: translateX(12px); }
+@keyframes pop {
+  0%   { transform: scale(0.93); opacity: 0; }
+  60%  { transform: scale(1.02); }
+  100% { transform: scale(1);    opacity: 1; }
+}
+@keyframes slideInRight {
+  from { opacity: 0; transform: translateX(14px); }
   to   { opacity: 1; transform: translateX(0); }
 }
-@keyframes pulse-soft {
-  0%, 100% { opacity: 1; }
-  50%       { opacity: 0.6; }
-}
-@keyframes shimmer {
+@keyframes shimmerLine {
   0%   { background-position: -200% center; }
   100% { background-position:  200% center; }
 }
-@keyframes pop {
-  0%   { transform: scale(0.94); opacity: 0; }
-  60%  { transform: scale(1.02); }
-  100% { transform: scale(1);    opacity: 1; }
+@keyframes pulse {
+  0%,100% { opacity: 1; }
+  50%      { opacity: 0.55; }
+}
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.96); }
+  to   { opacity: 1; transform: scale(1); }
 }

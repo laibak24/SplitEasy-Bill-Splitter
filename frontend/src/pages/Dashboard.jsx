@@ -1,5 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { signOut, fetchAuthSession } from "aws-amplify/auth";
+import { T, globalCss, NavLogo, Label, PrimaryBtn, ErrorBox } from "./Login";
 
 function Dashboard({ user, setUser }) {
   const [splits, setSplits]     = useState([]);
@@ -9,9 +10,13 @@ function Dashboard({ user, setUser }) {
   const [error, setError]       = useState("");
   const [success, setSuccess]   = useState("");
   const [loading, setLoading]   = useState(false);
+  const [fetching, setFetching] = useState(true);
   const [focused, setFocused]   = useState(null);
+  const [visible, setVisible]   = useState(false);
+  const historyRef              = useRef(null);
+  const API_URL                 = import.meta.env.VITE_API_URL;
 
-  const API_URL = import.meta.env.VITE_API_URL;
+  useEffect(() => { const t = setTimeout(() => setVisible(true), 60); return () => clearTimeout(t); }, []);
 
   const getToken = async () => {
     const session = await fetchAuthSession();
@@ -19,538 +24,470 @@ function Dashboard({ user, setUser }) {
   };
 
   const fetchSplits = async () => {
-  try {
-    const token = await getToken();
-
-    const res = await fetch(`${API_URL}/splits`, {
-      headers: {
-        Authorization: token
-      }
-    });
-
-    const data = await res.json();
-
-    console.log("GET SPLITS RESPONSE:", data);
-
-    setSplits(data.splits || []);
-  } catch (err) {
-    console.error("Failed to fetch splits", err);
-  }
-};
+    setFetching(true);
+    try {
+      const token = await getToken();
+      const res   = await fetch(`${API_URL}/splits`, { headers: { Authorization: token } });
+      const data  = await res.json();
+      setSplits(data.splits || []);
+    } catch (err) { console.error("Failed to fetch splits", err); }
+    finally { setFetching(false); }
+  };
 
   useEffect(() => { fetchSplits(); }, []);
 
   const handleCreate = async () => {
     setError(""); setSuccess("");
-    if (!billName.trim()) return setError("Bill name is required");
+    if (!billName.trim())                                return setError("Bill name is required");
     if (!amount || isNaN(amount) || Number(amount) < 0) return setError("Enter a valid amount");
     const peopleList = people.split(",").map(p => p.trim()).filter(Boolean);
-    if (peopleList.length === 0) return setError("Add at least one person");
-
+    if (peopleList.length === 0)                         return setError("Add at least one person");
     setLoading(true);
     try {
       const token = await getToken();
-      const res = await fetch(`${API_URL}/splits`, {
+      const res   = await fetch(`${API_URL}/splits`, {
         method: "POST",
-        headers: {"Content-Type": "application/json", Authorization: `Bearer ${token}`},
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ billName, totalAmount: Number(amount), people: peopleList }),
       });
       if (res.status === 201) {
-        setSuccess("Split created successfully");
+        setSuccess("Split created! 🎉");
         setBillName(""); setAmount(""); setPeople("");
-        fetchSplits();
-        setTimeout(() => setSuccess(""), 3000);
+        await fetchSplits();
+        setTimeout(() => setSuccess(""), 4000);
+        if (historyRef.current) historyRef.current.scrollTo({ top: 0, behavior: "smooth" });
       } else {
         const data = await res.json();
         setError(data.error || "Failed to create split");
       }
-    } catch (err) {
-      setError("Something went wrong");
-    } finally {
-      setLoading(false);
-    }
+    } catch { setError("Something went wrong. Try again."); }
+    finally { setLoading(false); }
   };
 
-  const handleLogout = async () => {
-    await signOut();
-    setUser(null);
-  };
+  const handleLogout = async () => { await signOut(); setUser(null); };
 
-  const totalSplitAmount = splits.reduce((sum, s) => sum + (s.totalAmount || 0), 0);
+  const totalAmount = splits.reduce((s, x) => s + (x.totalAmount || 0), 0);
+  const totalPeople = splits.reduce((s, x) => s + (x.people?.length || 0), 0);
 
   return (
-    <div style={styles.page}>
-      <style>{cssAnimations}</style>
+    <div style={s.page}>
+      <style>{globalCss + extraCss}</style>
 
-      {/* Navbar */}
-      <nav style={styles.navbar}>
-        <div style={styles.navInner}>
-          <div style={styles.navBrand}>
-            <span style={styles.navIcon}>💸</span>
-            <span style={styles.navName}>SplitEasy</span>
-          </div>
-          <div style={styles.navRight}>
-            <span style={styles.navEmail}>{user.email}</span>
-            <button style={styles.logoutBtn} onClick={handleLogout}>
+      {/* ── Navbar: no Logo component (has margin), inline brand ── */}
+      <nav style={s.navbar}>
+        <div style={s.navInner}>
+          <NavLogo />
+          <div style={s.navRight}>
+            <div style={s.userChip}>
+              <div style={s.avatar}>{(user.email?.[0] || "U").toUpperCase()}</div>
+              <span style={s.navEmail}>{user.email}</span>
+            </div>
+            <button style={s.logoutBtn} className="se-logout se-btn" onClick={handleLogout}>
               Sign out
             </button>
           </div>
         </div>
       </nav>
 
-      <div style={styles.main}>
+      {/* ── Main ── */}
+      <main style={{
+        ...s.main,
+        opacity: visible ? 1 : 0,
+        transform: visible ? "translateY(0)" : "translateY(16px)",
+        transition: "opacity 0.5s ease, transform 0.5s ease",
+      }}>
+
         {/* Page heading */}
-        <div style={styles.pageHeader}>
-          <h1 style={styles.pageTitle}>Your Splits</h1>
-          <p style={styles.pageSubtitle}>Track shared expenses and who owes what.</p>
+        <div style={s.pageHead}>
+          <h1 style={s.pageTitle}>Your Splits</h1>
+          <p style={s.pageSub}>Track shared expenses and who owes what.</p>
         </div>
 
-        {/* Stats bar */}
-        {splits.length > 0 && (
-          <div style={styles.statsRow}>
-            <div style={styles.statCard}>
-              <span style={styles.statValue}>{splits.length}</span>
-              <span style={styles.statLabel}>Total splits</span>
+        {/* ── Stat cards: all white, green outline on hover ── */}
+        <div style={s.statsRow}>
+          {[
+            { icon:"🧾", value: splits.length,  label:"Total Splits",    sub:"bills created",       hi: false },
+            { icon:"💰", value: `$${totalAmount.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}`, label:"Total Tracked", sub:"across all splits", hi: true  },
+            { icon:"👥", value: totalPeople,     label:"People Involved", sub:"unique participants", hi: false },
+          ].map((c, i) => (
+            <div key={i} className="se-stat" style={{ ...s.statCard, ...(c.hi ? s.statCardHi : {}), animationDelay:`${i*0.07}s` }}>
+              {c.hi && <div style={s.statTopBar} />}
+              <span style={{ fontSize:"1.35rem", display:"block", marginBottom:"0.6rem" }}>{c.icon}</span>
+              <div style={{ ...s.statValue, color: c.hi ? T.green : T.ink }}>{c.value}</div>
+              <div style={s.statLabel}>{c.label}</div>
+              <div style={s.statSub}>{c.sub}</div>
             </div>
-            <div style={styles.statDivider} />
-            <div style={styles.statCard}>
-              <span style={styles.statValue}>${totalSplitAmount.toFixed(2)}</span>
-              <span style={styles.statLabel}>Total tracked</span>
-            </div>
-            <div style={styles.statDivider} />
-            <div style={styles.statCard}>
-              <span style={styles.statValue}>
-                {splits.reduce((sum, s) => sum + (s.people?.length || 0), 0)}
-              </span>
-              <span style={styles.statLabel}>People involved</span>
-            </div>
-          </div>
-        )}
+          ))}
+        </div>
 
-        <div style={styles.grid}>
-          {/* Create Split Form */}
-          <div style={styles.card}>
-            <div style={styles.cardHeader}>
-              <h2 style={styles.cardTitle}>New split</h2>
-              <span style={styles.cardBadge}>+</span>
-            </div>
+        {/* ── Two-column body ── */}
+        <div style={s.grid}>
 
-            {error && (
-              <div style={styles.errorBox}>
-                <span>⚠</span> {error}
+          {/* ── NEW SPLIT ── */}
+          <div style={s.card}>
+            <div style={s.cardAccentBar} />
+            <div style={s.cardHead}>
+              <div>
+                <h2 style={s.cardTitle}>New Split</h2>
+                <p style={s.cardSub}>Equal split, instantly calculated</p>
               </div>
-            )}
+              <div style={s.plusBadge}>+</div>
+            </div>
+
+            <ErrorBox msg={error} />
             {success && (
-              <div style={styles.successBox}>
-                <span>✓</span> {success}
+              <div style={{ ...s.successBox, animation:"pop 0.25s ease both" }}>
+                <span style={{ fontWeight:700, color:T.green }}>✓</span> {success}
               </div>
             )}
 
-            <div style={styles.fieldGroup}>
-              <label style={styles.label}>Bill name</label>
-              <input
-                style={{ ...styles.input, ...(focused === "bill" ? styles.inputFocused : {}) }}
-                placeholder="e.g. Dinner at Kolachi"
-                value={billName}
+            <div style={{ ...s.field, animationDelay:"0.04s" }}>
+              <Label>Bill name</Label>
+              <input className="se-input" style={{ ...s.input, ...(focused==="bill" ? s.inputFocused : {}) }}
+                placeholder="e.g. Dinner at Kolachi" value={billName}
                 onChange={e => setBillName(e.target.value)}
-                onFocus={() => setFocused("bill")}
-                onBlur={() => setFocused(null)}
-              />
+                onFocus={() => setFocused("bill")} onBlur={() => setFocused(null)} />
             </div>
 
-            <div style={styles.fieldGroup}>
-              <label style={styles.label}>Total amount (PKR / $)</label>
-              <div style={styles.amountWrapper}>
-                <span style={styles.currencySymbol}>$</span>
-                <input
-                  style={{
-                    ...styles.input,
-                    ...(focused === "amount" ? styles.inputFocused : {}),
-                    paddingLeft: "2rem",
-                  }}
-                  placeholder="0.00"
-                  type="number"
-                  value={amount}
+            <div style={{ ...s.field, animationDelay:"0.08s" }}>
+              <Label>Total amount (PKR / $)</Label>
+              <div style={{ position:"relative" }}>
+                <span style={s.currencySymbol}>$</span>
+                <input className="se-input" style={{ ...s.input, ...(focused==="amount" ? s.inputFocused : {}), paddingLeft:"1.9rem" }}
+                  placeholder="0.00" type="number" value={amount}
                   onChange={e => setAmount(e.target.value)}
-                  onFocus={() => setFocused("amount")}
-                  onBlur={() => setFocused(null)}
-                />
+                  onFocus={() => setFocused("amount")} onBlur={() => setFocused(null)} />
               </div>
             </div>
 
-            <div style={styles.fieldGroup}>
-              <label style={styles.label}>Split between</label>
-              <input
-                style={{ ...styles.input, ...(focused === "people" ? styles.inputFocused : {}) }}
-                placeholder="Ali, Sara, Usman"
-                value={people}
+            <div style={{ ...s.field, animationDelay:"0.12s" }}>
+              <Label>Split between</Label>
+              <input className="se-input" style={{ ...s.input, ...(focused==="people" ? s.inputFocused : {}) }}
+                placeholder="Ali, Sara, Usman" value={people}
                 onChange={e => setPeople(e.target.value)}
-                onFocus={() => setFocused("people")}
-                onBlur={() => setFocused(null)}
-              />
-              <p style={styles.hint}>Separate names with commas</p>
+                onFocus={() => setFocused("people")} onBlur={() => setFocused(null)} />
+              <p style={s.hint}>Separate names with commas</p>
             </div>
 
-            <button
-              style={{ ...styles.button, ...(loading ? styles.buttonLoading : {}) }}
-              onClick={handleCreate}
-              disabled={loading}
-            >
-              {loading ? (
-                <span style={styles.loadingContent}>
-                  <span style={styles.spinner} />
-                  Creating…
-                </span>
-              ) : "Split bill"}
-            </button>
+            <div style={{ animation:"fadeUp 0.4s ease 0.16s both" }}>
+              <PrimaryBtn onClick={handleCreate} disabled={loading} loading={loading} label="Split bill" loadingLabel="Creating…" />
+            </div>
+
+            {/* How it works */}
+            <div style={s.howBox}>
+              <p style={s.howTitle}>How it works</p>
+              {[
+                "Enter the bill name & total amount",
+                "Add everyone's name, separated by commas",
+                "We calculate equal shares instantly",
+              ].map((step, i) => (
+                <div key={i} style={s.howRow}>
+                  <div style={s.howNum}>{i + 1}</div>
+                  <span style={s.howText}>{step}</span>
+                </div>
+              ))}
+            </div>
           </div>
 
-          {/* Split History */}
-          <div style={styles.card}>
-            <div style={styles.cardHeader}>
-              <h2 style={styles.cardTitle}>History</h2>
-              {splits.length > 0 && (
-                <span style={styles.countBadge}>{splits.length}</span>
-              )}
+          {/* ── HISTORY ── */}
+          <div style={s.card}>
+            <div style={s.cardAccentBar} />
+            <div style={s.cardHead}>
+              <div>
+                <h2 style={s.cardTitle}>History</h2>
+                <p style={s.cardSub}>Your recent bill splits</p>
+              </div>
+              {splits.length > 0 && <div style={s.countBadge}>{splits.length}</div>}
             </div>
 
-            {splits.length === 0 ? (
-              <div style={styles.emptyState}>
-                <div style={styles.emptyIcon}>🧾</div>
-                <p style={styles.emptyTitle}>No splits yet</p>
-                <p style={styles.emptySubtitle}>Create your first bill split on the left.</p>
-              </div>
-            ) : (
-              <div style={styles.splitList}>
-                {splits.map((split, i) => (
-                  <div
-                    key={split.splitId}
-                    style={{
-                      ...styles.splitItem,
-                      ...(i === splits.length - 1 ? { borderBottom: "none", marginBottom: 0, paddingBottom: 0 } : {}),
-                      animationDelay: `${i * 0.05}s`,
-                    }}
-                  >
-                    <div style={styles.splitTop}>
-                      <div>
-                        <p style={styles.splitName}>{split.billName}</p>
-                        <p style={styles.splitDate}>
-                          {new Date(split.createdAt).toLocaleDateString("en-US", {
-                            month: "short", day: "numeric", year: "numeric"
-                          })}
+            <div ref={historyRef} style={s.historyScroll}>
+              {fetching ? (
+                <div style={{ display:"flex", flexDirection:"column", gap:"10px" }}>
+                  {[1,2,3].map(i => <div key={i} style={{ ...s.skeleton, animationDelay:`${i*0.1}s` }} />)}
+                </div>
+              ) : splits.length === 0 ? (
+                <div style={s.empty}>
+                  <div style={{ fontSize:"2.5rem", marginBottom:"0.75rem" }}>🧾</div>
+                  <p style={{ fontSize:"0.93rem", fontWeight:"600", color:T.inkMid, margin:"0 0 0.3rem" }}>No splits yet</p>
+                  <p style={{ fontSize:"0.81rem", color:T.inkFaint, margin:0, lineHeight:1.6 }}>Create your first bill split using the form on the left.</p>
+                </div>
+              ) : (
+                splits.map((split, i) => (
+                  <div key={split.splitId || i} style={{
+                    ...s.splitItem,
+                    ...(i === splits.length-1 ? { borderBottom:"none", marginBottom:0, paddingBottom:0 } : {}),
+                    animation:"slideInRight 0.35s ease both",
+                    animationDelay:`${i*0.05}s`,
+                  }}>
+                    <div style={s.splitRow}>
+                      <div style={{ flex:1, minWidth:0 }}>
+                        <p style={s.splitName}>{split.billName}</p>
+                        <p style={s.splitDate}>
+                          {new Date(split.createdAt).toLocaleDateString("en-US",{ month:"short", day:"numeric", year:"numeric" })}
                         </p>
                       </div>
-                      <span style={styles.splitAmount}>${split.totalAmount}</span>
+                      <div style={s.amountBadge}>${split.totalAmount}</div>
                     </div>
-                    <div style={styles.tags}>
+                    <div style={s.tags}>
                       {split.people.map(p => (
-                        <span key={p.name} style={styles.tag}>
-                          <span style={styles.tagName}>{p.name}</span>
-                          <span style={styles.tagOwes}>${p.owes}</span>
+                        <span key={p.name} style={s.tag}>
+                          <span style={s.tagInitial}>{p.name?.[0]?.toUpperCase()}</span>
+                          <span style={s.tagName}>{p.name}</span>
+                          <span style={s.tagOwes}>${p.owes}</span>
                         </span>
                       ))}
                     </div>
                   </div>
-                ))}
-              </div>
-            )}
+                ))
+              )}
+            </div>
           </div>
+
         </div>
-      </div>
+      </main>
+
+      {/* ── Footer: dark bar, green developer names, always at bottom ── */}
+      <footer style={s.footer}>
+        <div style={s.footerInner}>
+          <div style={{ display:"flex", alignItems:"center", gap:"7px" }}>
+            <div style={{ width:"6px", height:"6px", borderRadius:"50%", background:T.green, animation:"pulseGreen 2s ease infinite" }} />
+            <span style={s.footerMuted}>SplitEasy · Secure · Private · Simple</span>
+          </div>
+          <span style={s.footerDevs}>
+            Laiba Khan [22k-4610] &amp; Ansharah Asad [22K-4411]
+          </span>
+        </div>
+      </footer>
     </div>
   );
 }
 
-const cssAnimations = `
-  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Serif+Display&display=swap');
-  @keyframes fadeUp {
-    from { opacity: 0; transform: translateY(12px); }
-    to   { opacity: 1; transform: translateY(0); }
+/* ── Extra CSS ── */
+const extraCss = `
+  @keyframes shimmerLine {
+    0%   { background-position:-200% center; }
+    100% { background-position:200% center; }
   }
-  @keyframes spin { to { transform: rotate(360deg); } }
+  @keyframes slideInRight {
+    from { opacity:0; transform:translateX(12px); }
+    to   { opacity:1; transform:translateX(0); }
+  }
+  @keyframes skeletonPulse {
+    0%,100%{ opacity:0.45; }
+    50%    { opacity:0.9; }
+  }
+  @keyframes pulseGreen {
+    0%,100% { box-shadow: 0 0 0 0 rgba(22,163,74,0.5); }
+    50%     { box-shadow: 0 0 0 5px rgba(22,163,74,0); }
+  }
+  .se-logout {
+    background: none;
+    transition: border-color 0.18s, color 0.18s, transform 0.15s, box-shadow 0.15s !important;
+  }
+  .se-logout:hover { border-color: #16A34A !important; color: #16A34A !important; }
+  .se-stat { transition: box-shadow 0.22s, transform 0.22s; cursor: default; }
+  .se-stat:hover {
+    box-shadow: 0 0 0 2px #16A34A, 0 6px 24px rgba(22,163,74,0.1);
+    transform: translateY(-2px);
+  }
+  input[type=number]::-webkit-inner-spin-button,
+  input[type=number]::-webkit-outer-spin-button { -webkit-appearance:none; margin:0; }
+  input[type=number] { -moz-appearance:textfield; }
 `;
 
-const styles = {
+/* ── Styles ── */
+const s = {
   page: {
     minHeight: "100vh",
-    background: "#FAFAF9",
-    fontFamily: "'DM Sans', sans-serif",
+    background: T.surfaceWarm,
+    fontFamily: T.fontSans,
+    display: "flex",
+    flexDirection: "column",
   },
 
-  /* Navbar */
+  /* Navbar — no margin inside, clean flush */
   navbar: {
-    background: "#fff",
-    borderBottom: "1px solid #E8E8E5",
+    background: "rgba(255,255,255,0.95)",
+    backdropFilter: "blur(14px)",
+    borderBottom: `1px solid ${T.border}`,
     position: "sticky",
     top: 0,
     zIndex: 100,
   },
   navInner: {
-    maxWidth: "960px",
+    maxWidth: "1400px",
     margin: "0 auto",
-    padding: "0.9rem 2rem",
+    padding: "0 2.5rem",
+    height: "56px",
     display: "flex",
     alignItems: "center",
     justifyContent: "space-between",
   },
-  navBrand: { display: "flex", alignItems: "center", gap: "8px" },
-  navIcon:  { fontSize: "1.2rem" },
-  navName:  { fontSize: "1rem", fontWeight: "600", color: "#1a1a1a", letterSpacing: "-0.3px" },
-  navRight: { display: "flex", alignItems: "center", gap: "1rem" },
-  navEmail: { fontSize: "0.82rem", color: "#999" },
+  navRight: { display:"flex", alignItems:"center", gap:"0.85rem" },
+  userChip: {
+    display:"flex", alignItems:"center", gap:"7px",
+    background: T.surfaceMid, border:`1px solid ${T.border}`,
+    borderRadius:"8px", padding:"0.25rem 0.75rem 0.25rem 0.3rem",
+  },
+  avatar: {
+    width:"24px", height:"24px", borderRadius:"50%",
+    background: T.ink, color:"#fff",
+    fontSize:"0.63rem", fontWeight:"700",
+    display:"flex", alignItems:"center", justifyContent:"center",
+  },
+  navEmail: { fontSize:"0.76rem", color:T.inkMid, maxWidth:"190px", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" },
   logoutBtn: {
-    background: "none",
-    border: "1px solid #E0DDD8",
-    color: "#555",
-    padding: "0.35rem 0.9rem",
-    borderRadius: "6px",
-    fontSize: "0.82rem",
-    cursor: "pointer",
-    fontFamily: "'DM Sans', sans-serif",
-    fontWeight: "500",
-    transition: "border-color 0.15s, color 0.15s",
+    background:"none", border:`1px solid ${T.border}`, color:T.inkLight,
+    padding:"0.3rem 0.85rem", borderRadius:"7px", fontSize:"0.76rem",
+    cursor:"pointer", fontFamily:T.fontSans, fontWeight:"500",
   },
 
-  /* Main layout */
+  /* Main — padding-top accounts for sticky navbar, no transform issues */
   main: {
-    maxWidth: "960px",
+    maxWidth: "1400px",
+    width: "100%",
     margin: "0 auto",
-    padding: "2.5rem 2rem",
-    animation: "fadeUp 0.4s ease both",
+    padding: "2.25rem 2.5rem 1.5rem",
+    flex: 1,
   },
-  pageHeader: { marginBottom: "2rem" },
+  pageHead: { marginBottom: "1.75rem" },
   pageTitle: {
-    fontSize: "1.75rem",
-    fontWeight: "600",
-    color: "#1a1a1a",
-    margin: "0 0 0.3rem",
-    letterSpacing: "-0.5px",
-    fontFamily: "'DM Serif Display', serif",
+    fontSize: "2rem", fontWeight:"400", color:T.ink,
+    margin: "0 0 0.25rem", letterSpacing:"-0.55px",
+    fontFamily: T.fontSerif,
   },
-  pageSubtitle: { fontSize: "0.9rem", color: "#999", margin: 0 },
+  pageSub: { fontSize:"0.88rem", color:T.inkLight, margin:0 },
 
-  /* Stats */
+  /* Stat cards */
   statsRow: {
-    display: "flex",
-    alignItems: "center",
-    background: "#fff",
-    border: "1px solid #E8E8E5",
-    borderRadius: "10px",
-    padding: "1rem 2rem",
-    marginBottom: "2rem",
-    gap: "1.5rem",
+    display:"grid", gridTemplateColumns:"repeat(3, 1fr)",
+    gap:"1rem", marginBottom:"1.75rem",
   },
-  statCard: { display: "flex", flexDirection: "column", gap: "2px" },
-  statValue: { fontSize: "1.3rem", fontWeight: "600", color: "#1a1a1a", letterSpacing: "-0.3px" },
-  statLabel: { fontSize: "0.75rem", color: "#aaa", fontWeight: "400" },
-  statDivider: { width: "1px", height: "36px", background: "#F0EDE8", margin: "0 0.5rem" },
+  statCard: {
+    background: T.surface,
+    border: `1px solid ${T.border}`,
+    borderRadius:"12px", padding:"1.25rem 1.5rem",
+    animation:"fadeUp 0.45s ease both",
+    position:"relative", overflow:"hidden",
+  },
+  statCardHi: {
+    borderLeft: `3px solid ${T.green}`,
+  },
+  statTopBar: {
+    position:"absolute", top:0, left:0, right:0, height:"2px",
+    background:"linear-gradient(90deg,#16A34A 0%,#22C55E 50%,#16A34A 100%)",
+    backgroundSize:"200% 100%", animation:"shimmerLine 2.5s linear infinite",
+  },
+  statValue: {
+    fontSize:"1.6rem", fontWeight:"600",
+    letterSpacing:"-0.5px", lineHeight:1,
+    marginBottom:"0.28rem", fontFamily:T.fontSerif,
+  },
+  statLabel: { fontSize:"0.78rem", fontWeight:"500", color:T.inkMid, marginBottom:"1px" },
+  statSub:   { fontSize:"0.68rem", color:T.inkFaint, letterSpacing:"0.2px" },
 
   /* Grid */
-  grid: {
-    display: "grid",
-    gridTemplateColumns: "1fr 1fr",
-    gap: "1.5rem",
-    "@media (max-width: 640px)": { gridTemplateColumns: "1fr" },
-  },
+  grid: { display:"grid", gridTemplateColumns:"1fr 1fr", gap:"1.5rem", alignItems:"start" },
 
   /* Card */
   card: {
-    background: "#fff",
-    borderRadius: "12px",
-    border: "1px solid #E8E8E5",
-    padding: "1.75rem",
-    boxShadow: "0 1px 4px rgba(0,0,0,0.03)",
+    background: T.surface, borderRadius:"14px",
+    border:`1px solid ${T.border}`,
+    padding:"1.75rem",
+    boxShadow:"0 1px 3px rgba(0,0,0,0.03), 0 6px 24px rgba(0,0,0,0.05)",
+    position:"relative", overflow:"hidden",
+    animation:"fadeUp 0.5s ease both",
   },
-  cardHeader: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: "1.5rem",
+  cardAccentBar: {
+    position:"absolute", top:0, left:0, right:0, height:"3px",
+    background:"linear-gradient(90deg,#16A34A 0%,#22C55E 50%,#16A34A 100%)",
+    backgroundSize:"200% 100%", animation:"shimmerLine 2.5s linear infinite",
   },
-  cardTitle: {
-    fontSize: "1rem",
-    fontWeight: "600",
-    color: "#1a1a1a",
-    margin: 0,
-    letterSpacing: "-0.2px",
-  },
-  cardBadge: {
-    width: "24px",
-    height: "24px",
-    borderRadius: "6px",
-    background: "#1a1a1a",
-    color: "#fff",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    fontSize: "1rem",
-    lineHeight: 1,
+  cardHead: { display:"flex", alignItems:"flex-start", justifyContent:"space-between", marginBottom:"1.4rem" },
+  cardTitle: { fontSize:"0.98rem", fontWeight:"600", color:T.ink, margin:"0 0 2px", letterSpacing:"-0.15px" },
+  cardSub: { fontSize:"0.74rem", color:T.inkFaint, margin:0 },
+  plusBadge: {
+    width:"27px", height:"27px", borderRadius:"7px", background:T.ink, color:"#fff",
+    display:"flex", alignItems:"center", justifyContent:"center",
+    fontSize:"1.15rem", fontWeight:"300", lineHeight:1, flexShrink:0,
   },
   countBadge: {
-    background: "#F0EDE8",
-    color: "#555",
-    fontSize: "0.75rem",
-    fontWeight: "600",
-    padding: "2px 8px",
-    borderRadius: "20px",
+    background:T.greenFaint, color:T.green,
+    border:`1px solid ${T.greenMid}`,
+    fontSize:"0.73rem", fontWeight:"600",
+    padding:"3px 10px", borderRadius:"20px", flexShrink:0,
   },
 
   /* Form */
-  fieldGroup: { marginBottom: "1.1rem" },
-  label: {
-    display: "block",
-    fontSize: "0.78rem",
-    fontWeight: "500",
-    color: "#666",
-    marginBottom: "0.4rem",
-    letterSpacing: "0.1px",
-  },
-  amountWrapper: { position: "relative" },
-  currencySymbol: {
-    position: "absolute",
-    left: "0.75rem",
-    top: "50%",
-    transform: "translateY(-50%)",
-    color: "#aaa",
-    fontSize: "0.9rem",
-    pointerEvents: "none",
-    zIndex: 1,
-  },
+  field: { marginBottom:"1rem", animation:"fadeUp 0.4s ease both" },
   input: {
-    width: "100%",
-    padding: "0.65rem 0.85rem",
-    borderRadius: "8px",
-    border: "1px solid #E0DDD8",
-    fontSize: "0.875rem",
-    color: "#1a1a1a",
-    background: "#FAFAF9",
-    outline: "none",
-    transition: "border-color 0.15s, box-shadow 0.15s",
-    boxSizing: "border-box",
-    fontFamily: "'DM Sans', sans-serif",
+    width:"100%", padding:"0.62rem 0.9rem", borderRadius:"8px",
+    border:`1px solid ${T.border}`, fontSize:"0.88rem", color:T.ink,
+    background:T.surfaceWarm, outline:"none",
+    boxSizing:"border-box", fontFamily:T.fontSans,
+    transition:"border-color 0.18s, box-shadow 0.18s, background 0.18s",
   },
-  inputFocused: {
-    borderColor: "#1a1a1a",
-    boxShadow: "0 0 0 3px rgba(26,26,26,0.06)",
-    background: "#fff",
-  },
-  hint: { fontSize: "0.75rem", color: "#c0c0bb", margin: "4px 0 0", },
+  inputFocused: { borderColor:T.green, boxShadow:"0 0 0 3px rgba(22,163,74,0.1)", background:"#fff" },
+  currencySymbol: { position:"absolute", left:"0.75rem", top:"50%", transform:"translateY(-50%)", color:T.inkFaint, fontSize:"0.88rem", pointerEvents:"none", zIndex:1 },
+  hint: { fontSize:"0.71rem", color:T.inkFaint, margin:"3px 0 0" },
 
-  /* Messages */
-  errorBox: {
-    display: "flex",
-    alignItems: "center",
-    gap: "8px",
-    background: "#FFF5F5",
-    border: "1px solid #FED7D7",
-    borderRadius: "8px",
-    padding: "0.65rem 0.9rem",
-    fontSize: "0.83rem",
-    color: "#C53030",
-    marginBottom: "1rem",
-  },
   successBox: {
-    display: "flex",
-    alignItems: "center",
-    gap: "8px",
-    background: "#F0FFF4",
-    border: "1px solid #C6F6D5",
-    borderRadius: "8px",
-    padding: "0.65rem 0.9rem",
-    fontSize: "0.83rem",
-    color: "#276749",
-    marginBottom: "1rem",
+    display:"flex", alignItems:"center", gap:"8px",
+    background:T.greenFaint, border:`1px solid ${T.greenMid}`,
+    borderRadius:"8px", padding:"0.62rem 0.9rem",
+    fontSize:"0.83rem", color:"#15803D", marginBottom:"1rem",
   },
 
-  /* Button */
-  button: {
-    width: "100%",
-    padding: "0.7rem",
-    background: "#1a1a1a",
-    color: "#fff",
-    border: "none",
-    borderRadius: "8px",
-    fontSize: "0.875rem",
-    fontWeight: "500",
-    cursor: "pointer",
-    fontFamily: "'DM Sans', sans-serif",
-    marginTop: "0.25rem",
-    transition: "background 0.15s",
+  /* How it works */
+  howBox: { marginTop:"1.4rem", paddingTop:"1.1rem", borderTop:`1px solid ${T.surfaceMid}` },
+  howTitle: { fontSize:"0.7rem", fontWeight:"600", color:T.inkFaint, textTransform:"uppercase", letterSpacing:"0.6px", margin:"0 0 0.65rem" },
+  howRow: { display:"flex", alignItems:"center", gap:"9px", marginBottom:"0.45rem" },
+  howNum: {
+    width:"19px", height:"19px", borderRadius:"50%",
+    background:T.greenFaint, color:T.green, border:`1px solid ${T.greenMid}`,
+    fontSize:"0.66rem", fontWeight:"700",
+    display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0,
   },
-  buttonLoading: { background: "#555", cursor: "not-allowed" },
-  loadingContent: {
+  howText: { fontSize:"0.77rem", color:T.inkMid },
+
+  /* History */
+  historyScroll: {
+    maxHeight:"520px", overflowY:"auto", overflowX:"hidden",
+    paddingRight:"2px", scrollbarWidth:"thin",
+    scrollbarColor:`${T.border} transparent`,
+  },
+  splitItem: { paddingBottom:"0.9rem", marginBottom:"0.9rem", borderBottom:`1px solid ${T.surfaceMid}` },
+  splitRow: { display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap:"0.6rem", marginBottom:"0.5rem" },
+  splitName: { fontSize:"0.88rem", fontWeight:"600", color:T.ink, margin:"0 0 2px", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" },
+  splitDate: { fontSize:"0.7rem", color:T.inkFaint, margin:0 },
+  amountBadge: { background:T.ink, color:"#fff", fontSize:"0.8rem", fontWeight:"600", padding:"3px 9px", borderRadius:"20px", flexShrink:0, whiteSpace:"nowrap" },
+  tags: { display:"flex", flexWrap:"wrap", gap:"4px" },
+  tag: { display:"inline-flex", alignItems:"center", gap:"4px", background:T.surfaceMid, border:`1px solid ${T.border}`, borderRadius:"6px", padding:"2px 7px", fontSize:"0.74rem" },
+  tagInitial: { width:"15px", height:"15px", borderRadius:"50%", background:T.ink, color:"#fff", fontSize:"0.52rem", fontWeight:"700", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 },
+  tagName: { color:T.inkMid, fontWeight:"500" },
+  tagOwes: { color:T.green, fontWeight:"700", fontSize:"0.73rem" },
+
+  skeleton: { height:"78px", borderRadius:"8px", background:"linear-gradient(90deg,#f0ede8 25%,#e8e5df 50%,#f0ede8 75%)", backgroundSize:"200% 100%", animation:"shimmerLine 1.4s linear infinite, skeletonPulse 1.4s ease infinite" },
+  empty: { textAlign:"center", padding:"3rem 1rem" },
+
+  /* Footer — dark, always anchored at bottom, developer names in green */
+  footer: {
+    background: T.ink,
+    marginTop: "auto",
+    flexShrink: 0,
+  },
+  footerInner: {
+    maxWidth: "1400px",
+    margin: "0 auto",
+    padding: "0.9rem 2.5rem",
     display: "flex",
     alignItems: "center",
-    justifyContent: "center",
-    gap: "8px",
-  },
-  spinner: {
-    width: "13px",
-    height: "13px",
-    border: "2px solid rgba(255,255,255,0.3)",
-    borderTopColor: "#fff",
-    borderRadius: "50%",
-    display: "inline-block",
-    animation: "spin 0.7s linear infinite",
-  },
-
-  /* Split list */
-  splitList: { display: "flex", flexDirection: "column" },
-  splitItem: {
-    paddingBottom: "1rem",
-    marginBottom: "1rem",
-    borderBottom: "1px solid #F3F2EF",
-    animation: "fadeUp 0.3s ease both",
-  },
-  splitTop: {
-    display: "flex",
     justifyContent: "space-between",
-    alignItems: "flex-start",
-    marginBottom: "0.6rem",
-  },
-  splitName: {
-    fontSize: "0.9rem",
-    fontWeight: "600",
-    color: "#1a1a1a",
-    margin: "0 0 2px",
-  },
-  splitDate: {
-    fontSize: "0.75rem",
-    color: "#bbb",
-    margin: 0,
-  },
-  splitAmount: {
-    fontSize: "1rem",
-    fontWeight: "600",
-    color: "#1a1a1a",
-    letterSpacing: "-0.3px",
-  },
-  tags: {
-    display: "flex",
     flexWrap: "wrap",
-    gap: "0.4rem",
+    gap: "8px",
   },
-  tag: {
-    display: "inline-flex",
-    alignItems: "center",
-    gap: "4px",
-    background: "#F7F7F5",
-    border: "1px solid #EBEBEB",
-    borderRadius: "6px",
-    padding: "3px 8px",
-    fontSize: "0.78rem",
-  },
-  tagName: { color: "#555", fontWeight: "500" },
-  tagOwes: { color: "#888", fontWeight: "400" },
-
-  /* Empty state */
-  emptyState: {
-    textAlign: "center",
-    padding: "3rem 1rem",
-  },
-  emptyIcon: { fontSize: "2.5rem", marginBottom: "0.75rem" },
-  emptyTitle: { fontSize: "0.95rem", fontWeight: "600", color: "#555", margin: "0 0 0.3rem" },
-  emptySubtitle: { fontSize: "0.82rem", color: "#bbb", margin: 0 },
+  footerMuted: { fontSize:"0.73rem", color:"rgba(255,255,255,0.35)", letterSpacing:"0.3px" },
+  footerDevs:  { fontSize:"0.73rem", color:T.green, fontWeight:"500", letterSpacing:"0.2px" },
 };
 
 export default Dashboard;

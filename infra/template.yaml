@@ -50,7 +50,7 @@ Resources:
     Properties:
       StageName: Prod
       Cors:
-        AllowMethods: "'GET,POST,OPTIONS'"
+        AllowMethods: "'GET,POST,DELETE,OPTIONS'"
         AllowHeaders: "'Content-Type,Authorization'"
         AllowOrigin: "'*'"
       Auth:
@@ -93,6 +93,25 @@ Resources:
             RestApiId: !Ref SplitEasyApi
             Path: /splits
             Method: get
+            Auth:
+              Authorizer: CognitoAuthorizer
+
+  DeleteSplitFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: SplitEasyDeleteSplit
+      CodeUri: ../backend/
+      Handler: src/deleteSplit.handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref SplitsTable
+      Events:
+        DeleteSplitApi:
+          Type: Api
+          Properties:
+            RestApiId: !Ref SplitEasyApi
+            Path: /splits/{createdAt}
+            Method: delete
             Auth:
               Authorizer: CognitoAuthorizer
 

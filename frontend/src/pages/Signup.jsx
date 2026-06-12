@@ -50,73 +50,62 @@ function Signup({ setPage }) {
 
   const passed   = passwordRules.filter(r=>r.test(password)).length;
   const strength = !password ? null : passed<=2 ? "weak" : passed<=4 ? "fair" : "strong";
-  const strColor = { weak:"#E53E3E", fair:"#D97706", strong:T.green };
+  const strColor = { weak:"#FC8181", fair:"#F6AD55", strong:T.green };
   const strLabel = { weak:"Weak", fair:"Fair", strong:"Strong" };
-
-  const awsServices = [
-    "Amazon Cognito","AWS Lambda","Amazon API Gateway",
-    "Amazon DynamoDB","AWS SAM","Amazon S3","Amazon CloudFront",
-  ];
 
   return (
     <div style={pg.page}>
-      <style>{globalCss}</style>
+      <style>{globalCss + authCss}</style>
 
-      {/* ── Left panel ── */}
-      <div style={pg.panel}>
-        <div style={{ position:"absolute", top:0, left:0, right:0, height:"3px", background:"linear-gradient(90deg,#16A34A,#22C55E,#16A34A)", backgroundSize:"200%", animation:"shimmerLine 2.5s linear infinite" }} />
+      {/* Top bar */}
+      <div style={pg.topBar} />
 
-        <div style={pg.panelInner}>
-          <div style={pg.tagline}>{step==="signup" ? "Join the split\nrevolution." : "Almost\nthere!"}</div>
-          <div style={pg.panelSub}>
-            {step==="signup"
-              ? "No awkward money conversations.\nJust fair splits, instantly."
-              : `We've sent a verification code\nto ${email}`}
-          </div>
-
-          {/* Step progress */}
-          <div style={{ display:"flex", alignItems:"center", marginBottom:"2rem" }}>
-            {["Create account","Verify email"].map((lbl,i)=>(
-              <div key={i} style={{ display:"flex", alignItems:"center" }}>
-                <div style={{ display:"flex", alignItems:"center", gap:"7px" }}>
-                  <div style={{ width:"26px", height:"26px", borderRadius:"50%",
-                    background: (i===0&&step==="signup")||(i===1&&step==="confirm") ? T.green : "rgba(255,255,255,0.1)",
-                    border:`1.5px solid ${(i===0&&step==="signup")||(i===1&&step==="confirm") ? T.green : "rgba(255,255,255,0.2)"}`,
-                    display:"flex", alignItems:"center", justifyContent:"center",
-                    fontSize:"0.7rem", fontWeight:"700", color:"#fff", transition:"all 0.3s", flexShrink:0 }}>
-                    {step==="confirm"&&i===0 ? "✓" : i+1}
-                  </div>
-                  <span style={{ fontSize:"0.76rem", whiteSpace:"nowrap", transition:"color 0.3s",
-                    color:(i===0&&step==="signup")||(i===1&&step==="confirm") ? "rgba(255,255,255,0.9)" : "rgba(255,255,255,0.3)" }}>
-                    {lbl}
-                  </span>
-                </div>
-                {i===0 && <div style={{ width:"24px", height:"1px", margin:"0 8px", background:step==="confirm" ? T.green : "rgba(255,255,255,0.15)", transition:"background 0.4s" }} />}
-              </div>
-            ))}
-          </div>
-
-          {/* AWS stack */}
-          <div style={pg.techSection}>
-            <p style={pg.techLabel}>Powered by AWS</p>
-            <div style={{ display:"flex", flexWrap:"wrap", gap:"6px" }}>
-              {awsServices.map((svc,i)=>(
-                <span key={i} className="se-tech-tag" style={pg.techTag}>{svc}</span>
-              ))}
-            </div>
-          </div>
-        </div>
+      {/* Back link */}
+      <div style={pg.backRow}>
+        <button style={pg.backBtn} onClick={() => setPage("landing")}>← Back to home</button>
       </div>
 
-      {/* ── Right: form ── */}
-      <div style={pg.formSide}>
-        <div style={{ ...pg.formWrap, opacity:visible?1:0, transform:visible?"translateY(0)":"translateY(20px)", transition:"opacity 0.5s ease, transform 0.5s ease" }}>
-          <Logo />
+      {/* Step indicator */}
+      <div style={pg.stepBarWrap}>
+        {["Create account","Verify email"].map((lbl,i)=>(
+          <div key={i} style={{ display:"flex", alignItems:"center" }}>
+            <div style={{ display:"flex", alignItems:"center", gap:"6px" }}>
+              <div style={{
+                width:"22px", height:"22px", borderRadius:"50%", flexShrink:0,
+                background: (i===0&&step==="signup")||(i===1&&step==="confirm") ? T.green : "rgba(255,255,255,0.08)",
+                border: `1.5px solid ${(i===0&&step==="signup")||(i===1&&step==="confirm") ? T.green : "rgba(255,255,255,0.15)"}`,
+                display:"flex", alignItems:"center", justifyContent:"center",
+                fontSize:"0.65rem", fontWeight:"700", color:"#fff", transition:"all 0.3s",
+              }}>
+                {step==="confirm"&&i===0 ? "✓" : i+1}
+              </div>
+              <span style={{
+                fontSize:"0.74rem", transition:"color 0.3s", whiteSpace:"nowrap",
+                color: (i===0&&step==="signup")||(i===1&&step==="confirm") ? "rgba(255,255,255,0.85)" : "rgba(255,255,255,0.3)",
+              }}>{lbl}</span>
+            </div>
+            {i===0 && (
+              <div style={{ width:"28px", height:"1px", margin:"0 8px", background: step==="confirm" ? T.green : "rgba(255,255,255,0.12)", transition:"background 0.4s" }} />
+            )}
+          </div>
+        ))}
+      </div>
+
+      {/* Centered form */}
+      <div style={pg.center}>
+        <div style={{
+          ...pg.formWrap,
+          opacity: visible ? 1 : 0,
+          transform: visible ? "translateY(0)" : "translateY(20px)",
+          transition: "opacity 0.5s ease, transform 0.5s ease",
+        }}>
+          <Logo center={true} />
 
           <div style={pg.card} className="se-card-hover">
             <div style={pg.accentLine} />
             <h1 style={pg.title}>{step==="signup" ? "Create your account" : "Check your inbox"}</h1>
             <p style={pg.subtitle}>{step==="signup" ? "Start splitting bills effortlessly" : `Enter the 6-digit code sent to ${email}`}</p>
+
             <ErrorBox msg={error} />
 
             {step==="signup" ? (
@@ -135,7 +124,7 @@ function Signup({ setPage }) {
                     <div style={{ display:"flex", alignItems:"center", gap:"8px", marginTop:"7px" }}>
                       <div style={{ display:"flex", gap:"3px", flex:1 }}>
                         {[1,2,3,4,5].map(i=>(
-                          <div key={i} style={{ flex:1, height:"3px", borderRadius:"2px", background:i<=passed?(strColor[strength]||"#ddd"):"#EDEDE9", transition:"background 0.25s" }} />
+                          <div key={i} style={{ flex:1, height:"3px", borderRadius:"2px", background:i<=passed?(strColor[strength]||"#444"):"rgba(255,255,255,0.1)", transition:"background 0.25s" }} />
                         ))}
                       </div>
                       {strength && <span style={{ fontSize:"0.72rem", fontWeight:"600", color:strColor[strength], minWidth:"34px", textAlign:"right" }}>{strLabel[strength]}</span>}
@@ -147,8 +136,8 @@ function Signup({ setPage }) {
                       const ok=rule.test(password);
                       return (
                         <div key={rule.id} style={{ display:"flex", alignItems:"center", gap:"4px" }}>
-                          <span style={{ fontSize:"0.74rem", fontWeight:"700", width:"12px", flexShrink:0, color:ok?T.green:pwTouched&&password.length>0?"#E53E3E":"#ccc", transition:"color 0.2s" }}>{ok?"✓":"○"}</span>
-                          <span style={{ fontSize:"0.71rem", color:ok?"#15803D":pwTouched&&password.length>0?"#999":"#c0c0c0", transition:"color 0.2s" }}>{rule.label}</span>
+                          <span style={{ fontSize:"0.74rem", fontWeight:"700", width:"12px", flexShrink:0, color:ok?T.green:pwTouched&&password.length>0?"rgba(252,129,129,0.8)":"rgba(255,255,255,0.2)", transition:"color 0.2s" }}>{ok?"✓":"○"}</span>
+                          <span style={{ fontSize:"0.71rem", color:ok?"rgba(34,197,94,0.85)":pwTouched&&password.length>0?"rgba(255,255,255,0.35)":"rgba(255,255,255,0.2)", transition:"color 0.2s" }}>{rule.label}</span>
                         </div>
                       );
                     })}
@@ -161,9 +150,9 @@ function Signup({ setPage }) {
               </>
             ) : (
               <>
-                <div style={{ textAlign:"center", marginBottom:"1.25rem", padding:"1rem", background:T.greenFaint, borderRadius:"10px", border:`1px solid ${T.greenMid}`, animation:"pop 0.3s ease both" }}>
+                <div style={{ textAlign:"center", marginBottom:"1.25rem", padding:"1rem", background:"rgba(22,163,74,0.1)", borderRadius:"10px", border:"1px solid rgba(22,163,74,0.25)", animation:"pop 0.3s ease both" }}>
                   <div style={{ fontSize:"1.8rem", marginBottom:"0.4rem", animation:"float 2s ease infinite" }}>✉️</div>
-                  <p style={{ fontSize:"0.81rem", color:"#15803D", margin:0, lineHeight:1.5 }}>Didn't receive it? Check your spam folder.</p>
+                  <p style={{ fontSize:"0.81rem", color:"rgba(34,197,94,0.85)", margin:0, lineHeight:1.5 }}>Didn't receive it? Check your spam folder.</p>
                 </div>
                 <div style={{ marginBottom:"0.9rem", animation:"fadeUp 0.35s ease both" }}>
                   <Label>Confirmation code</Label>
@@ -175,7 +164,7 @@ function Signup({ setPage }) {
             )}
 
             <div style={pg.switchRow}>
-              <span style={{ fontSize:"0.83rem", color:T.inkLight }}>Already have an account?</span>
+              <span style={{ fontSize:"0.83rem", color:"rgba(255,255,255,0.4)" }}>Already have an account?</span>
               <button className="se-link" style={pg.linkBtn} onClick={()=>setPage("login")}>Sign in</button>
             </div>
           </div>
@@ -188,22 +177,66 @@ function Signup({ setPage }) {
 }
 
 const pg = {
-  page: { minHeight:"100vh", display:"flex", fontFamily:T.fontSans, background:T.surfaceWarm },
-  panel: { flex:"0 0 44%", background:"#1C1C1E", display:"flex", alignItems:"center", justifyContent:"center", padding:"3rem 2.75rem", position:"relative", overflow:"hidden" },
-  panelInner: { position:"relative", zIndex:1, maxWidth:"360px", width:"100%" },
-  tagline: { fontSize:"2.5rem", fontWeight:"400", color:"#FFFFFF", fontFamily:T.fontSerif, lineHeight:1.2, marginBottom:"0.9rem", letterSpacing:"-0.4px", whiteSpace:"pre-line" },
-  panelSub: { fontSize:"0.92rem", color:"rgba(255,255,255,0.55)", lineHeight:1.65, marginBottom:"2rem", whiteSpace:"pre-line" },
-  techSection: { borderTop:"1px solid rgba(255,255,255,0.1)", paddingTop:"1.25rem" },
-  techLabel: { fontSize:"0.68rem", fontWeight:"600", color:"rgba(255,255,255,0.35)", textTransform:"uppercase", letterSpacing:"0.8px", margin:"0 0 0.6rem" },
-  techTag: { fontSize:"0.7rem", color:"rgba(255,255,255,0.6)", background:"rgba(255,255,255,0.07)", border:"1px solid rgba(255,255,255,0.12)", borderRadius:"5px", padding:"3px 8px", cursor:"default", fontFamily:T.fontSans },
-  formSide: { flex:1, display:"flex", alignItems:"center", justifyContent:"center", padding:"2rem", background:T.surfaceWarm, overflowY:"auto" },
-  formWrap: { width:"100%", maxWidth:"390px" },
-  card: { background:T.surface, borderRadius:"14px", border:`1px solid ${T.border}`, padding:"2rem 2.25rem", boxShadow:"0 1px 3px rgba(0,0,0,0.04), 0 8px 32px rgba(0,0,0,0.07)", position:"relative", overflow:"hidden" },
-  accentLine: { position:"absolute", top:0, left:0, right:0, height:"3px", background:"linear-gradient(90deg,#16A34A 0%,#22C55E 50%,#16A34A 100%)", backgroundSize:"200% 100%", animation:"shimmerLine 2.5s linear infinite" },
-  title: { fontSize:"1.5rem", fontWeight:"400", color:T.ink, margin:"0 0 0.25rem", letterSpacing:"-0.4px", fontFamily:T.fontSerif },
-  subtitle: { fontSize:"0.855rem", color:T.inkLight, margin:"0 0 1.25rem" },
-  switchRow: { display:"flex", flexDirection:"column", alignItems:"center", gap:"4px", marginTop:"1.5rem", paddingTop:"1.25rem", borderTop:`1px solid ${T.surfaceMid}`, animation:"fadeUp 0.4s ease 0.2s both" },
-  linkBtn: { background:"none", border:"none", color:T.ink, fontSize:"0.84rem", fontWeight:"500", cursor:"pointer", padding:0, fontFamily:T.fontSans, textDecoration:"underline", textUnderlineOffset:"2px", transition:"color 0.15s" },
+  page: {
+    minHeight: "100vh", background: "#111111",
+    fontFamily: T.fontSans, display: "flex", flexDirection: "column",
+  },
+  topBar: {
+    height: "3px",
+    background: "linear-gradient(90deg,#16A34A,#22C55E,#16A34A)",
+    backgroundSize: "200%", animation: "shimmerLine 2.5s linear infinite",
+    flexShrink: 0,
+  },
+  backRow: { padding: "1rem 1.5rem" },
+  backBtn: {
+    background: "none", border: "none",
+    color: "rgba(255,255,255,0.4)", cursor: "pointer",
+    fontSize: "0.82rem", fontFamily: T.fontSans, padding: 0,
+  },
+  stepBarWrap: {
+    display: "flex", alignItems: "center", justifyContent: "center",
+    gap: "0px", paddingBottom: "0.75rem",
+  },
+  center: {
+    flex: 1, display: "flex", alignItems: "center",
+    justifyContent: "center", padding: "1rem 2rem 3rem",
+  },
+  formWrap: { width: "100%", maxWidth: "400px" },
+  card: {
+    background: "rgba(255,255,255,0.05)",
+    border: "1px solid rgba(255,255,255,0.1)",
+    borderRadius: "16px", padding: "2rem 2.25rem",
+    boxShadow: "0 1px 3px rgba(0,0,0,0.3), 0 16px 48px rgba(0,0,0,0.4)",
+    position: "relative", overflow: "hidden",
+  },
+  accentLine: {
+    position: "absolute", top: 0, left: 0, right: 0, height: "3px",
+    background: "linear-gradient(90deg,#16A34A 0%,#22C55E 50%,#16A34A 100%)",
+    backgroundSize: "200% 100%", animation: "shimmerLine 2.5s linear infinite",
+  },
+  title: {
+    fontSize: "1.5rem", fontWeight: "400", color: "#fff",
+    margin: "0 0 0.25rem", letterSpacing: "-0.4px", fontFamily: T.fontSerif,
+  },
+  subtitle: { fontSize: "0.855rem", color: "rgba(255,255,255,0.4)", margin: "0 0 1.25rem" },
+  switchRow: {
+    display: "flex", flexDirection: "column", alignItems: "center",
+    gap: "4px", marginTop: "1.5rem", paddingTop: "1.25rem",
+    borderTop: "1px solid rgba(255,255,255,0.08)",
+    animation: "fadeUp 0.4s ease 0.2s both",
+  },
+  linkBtn: {
+    background: "none", border: "none", color: "rgba(255,255,255,0.7)",
+    fontSize: "0.84rem", fontWeight: "500", cursor: "pointer",
+    padding: 0, fontFamily: T.fontSans,
+    textDecoration: "underline", textUnderlineOffset: "2px",
+  },
 };
+
+const authCss = `
+  .se-input::placeholder { color: rgba(255,255,255,0.28) !important; }
+  .se-input:focus { border-color: #16A34A !important; box-shadow: 0 0 0 3px rgba(22,163,74,0.18) !important; background: rgba(255,255,255,0.09) !important; }
+  .se-link:hover { color: #22C55E !important; }
+`;
 
 export default Signup;

@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { signIn } from "aws-amplify/auth";
 
+/* ── Design tokens ── */
 export const T = {
   ink:         "#111111",
   inkMid:      "#555555",
@@ -18,6 +19,7 @@ export const T = {
   fontSerif:   "'DM Serif Display', serif",
 };
 
+/* ── Global CSS injected once ── */
 export const globalCss = `
   @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600&family=DM+Serif+Display&display=swap');
 
@@ -79,7 +81,7 @@ export const globalCss = `
   .se-tech-tag:hover { background: rgba(22,163,74,0.15) !important; border-color: rgba(22,163,74,0.4) !important; color: #16A34A !important; }
 `;
 
-/* ── NavLogo: no margin, for navbar use ── */
+/* ── Shared UI components ── */
 export function NavLogo() {
   return (
     <div style={{ display:"flex", alignItems:"center", gap:"10px" }}>
@@ -95,30 +97,29 @@ export function NavLogo() {
   );
 }
 
-/* ── AuthLogo: centered, with bottom margin, for auth pages ── */
 export function Logo({ center = true }) {
   return (
-    <div style={{ display:"flex", alignItems:"center", justifyContent: center ? "center" : "flex-start", gap:"10px", marginBottom:"1.5rem" }}>
-      <div style={{ width:"34px", height:"34px", borderRadius:"9px", background:T.ink, display:"flex", alignItems:"center", justifyContent:"center", position:"relative", flexShrink:0 }}>
-        <span style={{ fontSize:"0.95rem", lineHeight:1 }}>💸</span>
-        <div style={{ position:"absolute", bottom:"2px", right:"2px", width:"7px", height:"7px", borderRadius:"50%", background:T.green, border:"1.5px solid #fff", animation:"pulseGreen 2s ease infinite" }} />
+    <div style={{ display:"flex", alignItems:"center", justifyContent: center ? "center" : "flex-start", gap:"10px", marginBottom:"1.75rem" }}>
+      <div style={{ width:"36px", height:"36px", borderRadius:"9px", background:"rgba(255,255,255,0.08)", border:"1px solid rgba(255,255,255,0.12)", display:"flex", alignItems:"center", justifyContent:"center", position:"relative", flexShrink:0 }}>
+        <span style={{ fontSize:"1rem", lineHeight:1 }}>💸</span>
+        <div style={{ position:"absolute", bottom:"2px", right:"2px", width:"7px", height:"7px", borderRadius:"50%", background:T.green, border:"1.5px solid #1C1C1E", animation:"pulseGreen 2s ease infinite" }} />
       </div>
       <div>
-        <div style={{ fontSize:"1rem", fontWeight:"600", color:T.ink, letterSpacing:"-0.3px", fontFamily:T.fontSans, lineHeight:1.1 }}>SplitEasy</div>
-        <div style={{ fontSize:"0.62rem", color:T.inkLight, letterSpacing:"0.2px" }}>Smart Bill Splitting · Powered by AWS</div>
+        <div style={{ fontSize:"1rem", fontWeight:"600", color:"#fff", letterSpacing:"-0.3px", fontFamily:T.fontSans, lineHeight:1.1 }}>SplitEasy</div>
+        <div style={{ fontSize:"0.62rem", color:"rgba(255,255,255,0.4)", letterSpacing:"0.2px" }}>Smart Bill Splitting · Powered by AWS</div>
       </div>
     </div>
   );
 }
 
 export function Label({ children }) {
-  return <label style={{ display:"block", fontSize:"0.78rem", fontWeight:"500", color:T.inkMid, marginBottom:"0.4rem" }}>{children}</label>;
+  return <label style={{ display:"block", fontSize:"0.78rem", fontWeight:"500", color:"rgba(255,255,255,0.55)", marginBottom:"0.4rem" }}>{children}</label>;
 }
 
 export function Input({ type="text", placeholder, value, onChange, onKeyDown, extra={} }) {
   return (
     <input className="se-input"
-      style={{ width:"100%", padding:"0.62rem 0.9rem", borderRadius:"8px", border:`1px solid ${T.border}`, fontSize:"0.88rem", color:T.ink, background:T.surfaceWarm, outline:"none", boxSizing:"border-box", fontFamily:T.fontSans, ...extra }}
+      style={{ width:"100%", padding:"0.65rem 0.9rem", borderRadius:"8px", border:"1px solid rgba(255,255,255,0.12)", fontSize:"0.88rem", color:"#fff", background:"rgba(255,255,255,0.06)", outline:"none", boxSizing:"border-box", fontFamily:T.fontSans, ...extra }}
       type={type} placeholder={placeholder} value={value} onChange={onChange} onKeyDown={onKeyDown} />
   );
 }
@@ -136,7 +137,7 @@ export function PrimaryBtn({ onClick, disabled, loading, label, loadingLabel }) 
   };
   return (
     <button className="se-btn"
-      style={{ width:"100%", padding:"0.74rem", background:T.ink, color:"#fff", border:"none", borderRadius:"9px", fontSize:"0.9rem", fontWeight:"500", cursor:disabled?"not-allowed":"pointer", fontFamily:T.fontSans, marginTop:"0.5rem", opacity:disabled?0.6:1 }}
+      style={{ width:"100%", padding:"0.74rem", background:T.green, color:"#fff", border:"none", borderRadius:"9px", fontSize:"0.9rem", fontWeight:"500", cursor:disabled?"not-allowed":"pointer", fontFamily:T.fontSans, marginTop:"0.5rem", opacity:disabled?0.6:1 }}
       onClick={handleClick} disabled={disabled}>
       {loading ? (
         <span style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:"8px" }}>
@@ -151,19 +152,19 @@ export function PrimaryBtn({ onClick, disabled, loading, label, loadingLabel }) 
 export function ErrorBox({ msg }) {
   if (!msg) return null;
   return (
-    <div style={{ display:"flex", alignItems:"center", gap:"8px", background:"#FFF5F5", border:"1px solid #FED7D7", borderRadius:"8px", padding:"0.65rem 0.9rem", fontSize:"0.84rem", color:"#C53030", marginBottom:"1.1rem", animation:"pop 0.25s ease both" }}>
+    <div style={{ display:"flex", alignItems:"center", gap:"8px", background:"rgba(229,62,62,0.12)", border:"1px solid rgba(229,62,62,0.3)", borderRadius:"8px", padding:"0.65rem 0.9rem", fontSize:"0.84rem", color:"#FC8181", marginBottom:"1.1rem", animation:"pop 0.25s ease both" }}>
       <span>⚠</span> {msg}
     </div>
   );
 }
 
-/* ── Auth page footer — always visible inside form column ── */
 export function AuthFooter() {
   return (
-    <div style={{ marginTop:"1.25rem", padding:"0.8rem 1.25rem", background:T.ink, borderRadius:"10px", display:"flex", flexWrap:"wrap", alignItems:"center", justifyContent:"center", gap:"6px" }}>
-      <span style={{ fontSize:"0.71rem", color:"rgba(255,255,255,0.45)", letterSpacing:"0.3px" }}>Secure · Private · Simple</span>
-      <span style={{ color:"rgba(255,255,255,0.2)", fontSize:"0.71rem" }}>·</span>
-      <span style={{ fontSize:"0.71rem", color:T.green, fontWeight:"500", letterSpacing:"0.2px" }}>
+    <div style={{ marginTop:"1.5rem", textAlign:"center" }}>
+      <span style={{ fontSize:"0.7rem", color:"rgba(255,255,255,0.25)", letterSpacing:"0.3px" }}>
+        Secure · Private · Simple ·{" "}
+      </span>
+      <span style={{ fontSize:"0.7rem", color:T.green, fontWeight:"500" }}>
         Laiba Khan [22k-4610] &amp; Ansharah Asad [22K-4411]
       </span>
     </div>
@@ -171,7 +172,7 @@ export function AuthFooter() {
 }
 
 /* ══════════════════════════════════════════════════════════════════
-   LOGIN
+   LOGIN PAGE
 ══════════════════════════════════════════════════════════════════ */
 function Login({ setUser, setPage }) {
   const [email, setEmail]       = useState("");
@@ -196,57 +197,33 @@ function Login({ setUser, setPage }) {
 
   const onKey = (e) => { if (e.key === "Enter") handleLogin(); };
 
-  const awsServices = [
-    "Amazon Cognito","AWS Lambda","Amazon API Gateway",
-    "Amazon DynamoDB","AWS SAM","Amazon S3","Amazon CloudFront",
-  ];
-
   return (
     <div style={pg.page}>
-      <style>{globalCss}</style>
+      <style>{globalCss + authCss}</style>
 
-      {/* ── Left panel ── */}
-      <div style={pg.panel}>
-        <div style={{ position:"absolute", top:0, left:0, right:0, height:"3px", background:"linear-gradient(90deg,#16A34A,#22C55E,#16A34A)", backgroundSize:"200%", animation:"shimmerLine 2.5s linear infinite" }} />
+      {/* Shimmer line at top */}
+      <div style={pg.topBar} />
 
-        <div style={pg.panelInner}>
-          <div style={pg.tagline}>Split bills.<br />Not friendships.</div>
-          <div style={pg.panelSub}>The fairest way to share expenses with anyone, anywhere.</div>
-
-          <div style={pg.featureList}>
-            {[
-              { icon:"⚡", text:"Instant equal splits" },
-              { icon:"🔒", text:"Enterprise-grade auth" },
-              { icon:"📊", text:"Full expense history" },
-            ].map((f,i) => (
-              <div key={i} style={{ ...pg.featurePill, animationDelay:`${i*0.1}s` }}>
-                <span style={{ fontSize:"0.9rem" }}>{f.icon}</span>
-                <span style={{ fontSize:"0.84rem", color:"rgba(255,255,255,0.82)", fontWeight:"400" }}>{f.text}</span>
-              </div>
-            ))}
-          </div>
-
-          {/* AWS tech stack */}
-          <div style={pg.techSection}>
-            <p style={pg.techLabel}>Powered by AWS</p>
-            <div style={pg.techGrid}>
-              {awsServices.map((svc,i) => (
-                <span key={i} className="se-tech-tag" style={pg.techTag}>{svc}</span>
-              ))}
-            </div>
-          </div>
-        </div>
+      {/* Back link */}
+      <div style={pg.backRow}>
+        <button style={pg.backBtn} onClick={() => setPage("landing")}>← Back to home</button>
       </div>
 
-      {/* ── Right: form ── */}
-      <div style={pg.formSide}>
-        <div style={{ ...pg.formWrap, opacity:visible?1:0, transform:visible?"translateY(0)":"translateY(20px)", transition:"opacity 0.5s ease, transform 0.5s ease" }}>
-          <Logo />
+      {/* Centered form */}
+      <div style={pg.center}>
+        <div style={{
+          ...pg.formWrap,
+          opacity: visible ? 1 : 0,
+          transform: visible ? "translateY(0)" : "translateY(20px)",
+          transition: "opacity 0.5s ease, transform 0.5s ease",
+        }}>
+          <Logo center={true} />
 
           <div style={pg.card} className="se-card-hover">
             <div style={pg.accentLine} />
             <h1 style={pg.title}>Welcome back</h1>
             <p style={pg.subtitle}>Sign in to continue to SplitEasy</p>
+
             <ErrorBox msg={error} />
 
             <div style={{ marginBottom:"1rem", animation:"fadeUp 0.4s ease 0.05s both" }}>
@@ -262,7 +239,7 @@ function Login({ setUser, setPage }) {
             </div>
 
             <div style={pg.switchRow}>
-              <span style={{ fontSize:"0.83rem", color:T.inkLight }}>Don't have an account?</span>
+              <span style={{ fontSize:"0.83rem", color:"rgba(255,255,255,0.45)" }}>Don't have an account?</span>
               <button className="se-link" style={pg.linkBtn} onClick={()=>setPage("signup")}>Sign up for free</button>
             </div>
           </div>
@@ -275,25 +252,64 @@ function Login({ setUser, setPage }) {
 }
 
 const pg = {
-  page: { minHeight:"100vh", display:"flex", fontFamily:T.fontSans, background:T.surfaceWarm },
-  panel: { flex:"0 0 44%", background:"#1C1C1E", display:"flex", alignItems:"center", justifyContent:"center", padding:"3rem 2.75rem", position:"relative", overflow:"hidden" },
-  panelInner: { position:"relative", zIndex:1, maxWidth:"360px", width:"100%" },
-  tagline: { fontSize:"2.6rem", fontWeight:"400", color:"#FFFFFF", fontFamily:T.fontSerif, lineHeight:1.18, marginBottom:"0.9rem", letterSpacing:"-0.4px" },
-  panelSub: { fontSize:"0.92rem", color:"rgba(255,255,255,0.55)", lineHeight:1.65, marginBottom:"2rem" },
-  featureList: { display:"flex", flexDirection:"column", gap:"8px", marginBottom:"2rem" },
-  featurePill: { display:"flex", alignItems:"center", gap:"10px", background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,255,255,0.1)", borderRadius:"8px", padding:"9px 13px", animation:"fadeUp 0.45s ease both" },
-  techSection: { borderTop:"1px solid rgba(255,255,255,0.1)", paddingTop:"1.25rem" },
-  techLabel: { fontSize:"0.68rem", fontWeight:"600", color:"rgba(255,255,255,0.35)", textTransform:"uppercase", letterSpacing:"0.8px", margin:"0 0 0.6rem" },
-  techGrid: { display:"flex", flexWrap:"wrap", gap:"6px" },
-  techTag: { fontSize:"0.7rem", color:"rgba(255,255,255,0.6)", background:"rgba(255,255,255,0.07)", border:"1px solid rgba(255,255,255,0.12)", borderRadius:"5px", padding:"3px 8px", cursor:"default", fontFamily:T.fontSans },
-  formSide: { flex:1, display:"flex", alignItems:"center", justifyContent:"center", padding:"2rem 2rem", background:T.surfaceWarm, overflowY:"auto" },
-  formWrap: { width:"100%", maxWidth:"390px" },
-  card: { background:T.surface, borderRadius:"14px", border:`1px solid ${T.border}`, padding:"2rem 2.25rem", boxShadow:"0 1px 3px rgba(0,0,0,0.04), 0 8px 32px rgba(0,0,0,0.07)", position:"relative", overflow:"hidden" },
-  accentLine: { position:"absolute", top:0, left:0, right:0, height:"3px", background:"linear-gradient(90deg,#16A34A 0%,#22C55E 50%,#16A34A 100%)", backgroundSize:"200% 100%", animation:"shimmerLine 2.5s linear infinite" },
-  title: { fontSize:"1.5rem", fontWeight:"400", color:T.ink, margin:"0 0 0.25rem", letterSpacing:"-0.4px", fontFamily:T.fontSerif },
-  subtitle: { fontSize:"0.855rem", color:T.inkLight, margin:"0 0 1.5rem" },
-  switchRow: { display:"flex", flexDirection:"column", alignItems:"center", gap:"4px", marginTop:"1.5rem", paddingTop:"1.25rem", borderTop:`1px solid ${T.surfaceMid}`, animation:"fadeUp 0.4s ease 0.2s both" },
-  linkBtn: { background:"none", border:"none", color:T.ink, fontSize:"0.84rem", fontWeight:"500", cursor:"pointer", padding:0, fontFamily:T.fontSans, textDecoration:"underline", textUnderlineOffset:"2px", transition:"color 0.15s" },
+  page: {
+    minHeight: "100vh", background: "#111111",
+    fontFamily: T.fontSans, display: "flex", flexDirection: "column",
+  },
+  topBar: {
+    height: "3px",
+    background: "linear-gradient(90deg,#16A34A,#22C55E,#16A34A)",
+    backgroundSize: "200%", animation: "shimmerLine 2.5s linear infinite",
+    flexShrink: 0,
+  },
+  backRow: { padding: "1rem 1.5rem" },
+  backBtn: {
+    background: "none", border: "none",
+    color: "rgba(255,255,255,0.4)", cursor: "pointer",
+    fontSize: "0.82rem", fontFamily: T.fontSans,
+    display: "flex", alignItems: "center", gap: "5px",
+    transition: "color 0.15s", padding: 0,
+  },
+  center: {
+    flex: 1, display: "flex", alignItems: "center",
+    justifyContent: "center", padding: "1.5rem 2rem 3rem",
+  },
+  formWrap: { width: "100%", maxWidth: "400px" },
+  card: {
+    background: "rgba(255,255,255,0.05)",
+    border: "1px solid rgba(255,255,255,0.1)",
+    borderRadius: "16px", padding: "2rem 2.25rem",
+    boxShadow: "0 1px 3px rgba(0,0,0,0.3), 0 16px 48px rgba(0,0,0,0.4)",
+    position: "relative", overflow: "hidden",
+  },
+  accentLine: {
+    position: "absolute", top: 0, left: 0, right: 0, height: "3px",
+    background: "linear-gradient(90deg,#16A34A 0%,#22C55E 50%,#16A34A 100%)",
+    backgroundSize: "200% 100%", animation: "shimmerLine 2.5s linear infinite",
+  },
+  title: {
+    fontSize: "1.5rem", fontWeight: "400", color: "#fff",
+    margin: "0 0 0.25rem", letterSpacing: "-0.4px", fontFamily: T.fontSerif,
+  },
+  subtitle: { fontSize: "0.855rem", color: "rgba(255,255,255,0.4)", margin: "0 0 1.5rem" },
+  switchRow: {
+    display: "flex", flexDirection: "column", alignItems: "center",
+    gap: "4px", marginTop: "1.5rem", paddingTop: "1.25rem",
+    borderTop: "1px solid rgba(255,255,255,0.08)",
+    animation: "fadeUp 0.4s ease 0.2s both",
+  },
+  linkBtn: {
+    background: "none", border: "none", color: "rgba(255,255,255,0.7)",
+    fontSize: "0.84rem", fontWeight: "500", cursor: "pointer",
+    padding: 0, fontFamily: T.fontSans,
+    textDecoration: "underline", textUnderlineOffset: "2px",
+  },
 };
+
+const authCss = `
+  .se-input::placeholder { color: rgba(255,255,255,0.28) !important; }
+  .se-input:focus { border-color: #16A34A !important; box-shadow: 0 0 0 3px rgba(22,163,74,0.18) !important; background: rgba(255,255,255,0.09) !important; }
+  .se-link:hover { color: #22C55E !important; }
+`;
 
 export default Login;

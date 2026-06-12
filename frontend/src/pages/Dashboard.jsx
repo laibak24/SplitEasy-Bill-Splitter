@@ -2,21 +2,33 @@ import { useState, useEffect, useRef } from "react";
 import { signOut, fetchAuthSession } from "aws-amplify/auth";
 import { T, globalCss, NavLogo, Label, PrimaryBtn, ErrorBox } from "./Login";
 
-function Dashboard({ user, setUser }) {
-  const [splits, setSplits]     = useState([]);
-  const [billName, setBillName] = useState("");
-  const [amount, setAmount]     = useState("");
-  const [people, setPeople]     = useState("");
-  const [error, setError]       = useState("");
-  const [success, setSuccess]   = useState("");
-  const [loading, setLoading]   = useState(false);
-  const [fetching, setFetching] = useState(true);
-  const [focused, setFocused]   = useState(null);
-  const [visible, setVisible]   = useState(false);
-  const historyRef              = useRef(null);
-  const API_URL                 = import.meta.env.VITE_API_URL;
+const CURRENCIES = [
+  { code: "USD", symbol: "$",  label: "USD ($)"  },
+  { code: "PKR", symbol: "₨", label: "PKR (₨)"  },
+  { code: "EUR", symbol: "€",  label: "EUR (€)"  },
+  { code: "GBP", symbol: "£",  label: "GBP (£)"  },
+];
+
+function Dashboard({ user, setUser, setPage }) {
+  const [splits, setSplits]       = useState([]);
+  const [billName, setBillName]   = useState("");
+  const [amount, setAmount]       = useState("");
+  const [people, setPeople]       = useState("");
+  const [currency, setCurrency]   = useState(() => localStorage.getItem("se_currency") || "USD");
+  const [error, setError]         = useState("");
+  const [success, setSuccess]     = useState("");
+  const [loading, setLoading]     = useState(false);
+  const [fetching, setFetching]   = useState(true);
+  const [deleting, setDeleting]   = useState(null);
+  const [focused, setFocused]     = useState(null);
+  const [visible, setVisible]     = useState(false);
+  const [search, setSearch]       = useState("");
+  const historyRef                = useRef(null);
+  const API_URL                   = import.meta.env.VITE_API_URL;
 
   useEffect(() => { const t = setTimeout(() => setVisible(true), 60); return () => clearTimeout(t); }, []);
+
+  const currSymbol = CURRENCIES.find(c => c.code === currency)?.symbol || "$";
 
   const getToken = async () => {
     const session = await fetchAuthSession();
@@ -58,22 +70,57 @@ function Dashboard({ user, setUser }) {
         if (historyRef.current) historyRef.current.scrollTo({ top: 0, behavior: "smooth" });
       } else {
         const data = await res.json();
-        setError(data.error || "Failed to create split");
+        setError(data.error || data.message || "Failed to create split");
       }
     } catch { setError("Something went wrong. Try again."); }
     finally { setLoading(false); }
   };
 
-  const handleLogout = async () => { await signOut(); setUser(null); };
+  const handleDelete = async (split) => {
+    if (!window.confirm(`Delete "${split.billName}"?`)) return;
+    setDeleting(split.createdAt);
+    try {
+      const token = await getToken();
+      const res   = await fetch(`${API_URL}/splits/${encodeURIComponent(split.createdAt)}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        setSplits(prev => prev.filter(s => s.createdAt !== split.createdAt));
+      } else {
+        const data = await res.json();
+        alert(data.message || "Failed to delete split");
+      }
+    } catch { alert("Something went wrong. Try again."); }
+    finally { setDeleting(null); }
+  };
+
+  const handleLogout = async () => {
+    await signOut();
+    setUser(null);
+    setPage("landing");
+  };
+
+  const handleCurrencyChange = (e) => {
+    const val = e.target.value;
+    setCurrency(val);
+    localStorage.setItem("se_currency", val);
+  };
 
   const totalAmount = splits.reduce((s, x) => s + (x.totalAmount || 0), 0);
   const totalPeople = splits.reduce((s, x) => s + (x.people?.length || 0), 0);
+
+  const filteredSplits = search.trim()
+    ? splits.filter(sp => sp.billName?.toLowerCase().includes(search.toLowerCase()))
+    : splits;
+
+  const fmt = (n) => Number(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
   return (
     <div style={s.page}>
       <style>{globalCss + extraCss}</style>
 
-      {/* ── Navbar: no Logo component (has margin), inline brand ── */}
+      {/* ── Navbar ── */}
       <nav style={s.navbar}>
         <div style={s.navInner}>
           <NavLogo />
@@ -103,11 +150,11 @@ function Dashboard({ user, setUser }) {
           <p style={s.pageSub}>Track shared expenses and who owes what.</p>
         </div>
 
-        {/* ── Stat cards: all white, green outline on hover ── */}
+        {/* ── Stat cards ── */}
         <div style={s.statsRow}>
           {[
             { icon:"🧾", value: splits.length,  label:"Total Splits",    sub:"bills created",       hi: false },
-            { icon:"💰", value: `$${totalAmount.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}`, label:"Total Tracked", sub:"across all splits", hi: true  },
+            { icon:"💰", value: `${currSymbol}${fmt(totalAmount)}`, label:"Total Tracked", sub:"across all splits", hi: true  },
             { icon:"👥", value: totalPeople,     label:"People Involved", sub:"unique participants", hi: false },
           ].map((c, i) => (
             <div key={i} className="se-stat" style={{ ...s.statCard, ...(c.hi ? s.statCardHi : {}), animationDelay:`${i*0.07}s` }}>
@@ -150,9 +197,20 @@ function Dashboard({ user, setUser }) {
             </div>
 
             <div style={{ ...s.field, animationDelay:"0.08s" }}>
-              <Label>Total amount (PKR / $)</Label>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"0.4rem" }}>
+                <Label>Total amount</Label>
+                <select
+                  value={currency}
+                  onChange={handleCurrencyChange}
+                  style={s.currencySelect}
+                >
+                  {CURRENCIES.map(c => (
+                    <option key={c.code} value={c.code}>{c.label}</option>
+                  ))}
+                </select>
+              </div>
               <div style={{ position:"relative" }}>
-                <span style={s.currencySymbol}>$</span>
+                <span style={s.currencySymbol}>{currSymbol}</span>
                 <input className="se-input" style={{ ...s.input, ...(focused==="amount" ? s.inputFocused : {}), paddingLeft:"1.9rem" }}
                   placeholder="0.00" type="number" value={amount}
                   onChange={e => setAmount(e.target.value)}
@@ -200,6 +258,22 @@ function Dashboard({ user, setUser }) {
               {splits.length > 0 && <div style={s.countBadge}>{splits.length}</div>}
             </div>
 
+            {/* Search bar */}
+            {splits.length > 0 && (
+              <div style={{ marginBottom: "1rem", position: "relative" }}>
+                <span style={s.searchIcon}>🔍</span>
+                <input
+                  className="se-input"
+                  style={{ ...s.input, ...(focused==="search" ? s.inputFocused : {}), paddingLeft: "2rem", fontSize: "0.82rem" }}
+                  placeholder="Search splits…"
+                  value={search}
+                  onChange={e => setSearch(e.target.value)}
+                  onFocus={() => setFocused("search")}
+                  onBlur={() => setFocused(null)}
+                />
+              </div>
+            )}
+
             <div ref={historyRef} style={s.historyScroll}>
               {fetching ? (
                 <div style={{ display:"flex", flexDirection:"column", gap:"10px" }}>
@@ -211,13 +285,20 @@ function Dashboard({ user, setUser }) {
                   <p style={{ fontSize:"0.93rem", fontWeight:"600", color:T.inkMid, margin:"0 0 0.3rem" }}>No splits yet</p>
                   <p style={{ fontSize:"0.81rem", color:T.inkFaint, margin:0, lineHeight:1.6 }}>Create your first bill split using the form on the left.</p>
                 </div>
+              ) : filteredSplits.length === 0 ? (
+                <div style={s.empty}>
+                  <div style={{ fontSize:"2rem", marginBottom:"0.5rem" }}>🔍</div>
+                  <p style={{ fontSize:"0.88rem", color:T.inkMid, margin:0 }}>No splits match "{search}"</p>
+                </div>
               ) : (
-                splits.map((split, i) => (
+                filteredSplits.map((split, i) => (
                   <div key={split.splitId || i} style={{
                     ...s.splitItem,
-                    ...(i === splits.length-1 ? { borderBottom:"none", marginBottom:0, paddingBottom:0 } : {}),
+                    ...(i === filteredSplits.length-1 ? { borderBottom:"none", marginBottom:0, paddingBottom:0 } : {}),
                     animation:"slideInRight 0.35s ease both",
                     animationDelay:`${i*0.05}s`,
+                    opacity: deleting === split.createdAt ? 0.5 : 1,
+                    transition: "opacity 0.2s",
                   }}>
                     <div style={s.splitRow}>
                       <div style={{ flex:1, minWidth:0 }}>
@@ -226,14 +307,27 @@ function Dashboard({ user, setUser }) {
                           {new Date(split.createdAt).toLocaleDateString("en-US",{ month:"short", day:"numeric", year:"numeric" })}
                         </p>
                       </div>
-                      <div style={s.amountBadge}>${split.totalAmount}</div>
+                      <div style={{ display:"flex", alignItems:"center", gap:"6px", flexShrink:0 }}>
+                        <div style={s.amountBadge}>{currSymbol}{fmt(split.totalAmount)}</div>
+                        <button
+                          style={s.deleteBtn}
+                          className="se-delete-btn"
+                          onClick={() => handleDelete(split)}
+                          disabled={deleting === split.createdAt}
+                          title="Delete split"
+                        >
+                          {deleting === split.createdAt ? (
+                            <span style={{ width:"11px", height:"11px", border:"2px solid rgba(0,0,0,0.2)", borderTopColor:"#666", borderRadius:"50%", display:"inline-block", animation:"spin 0.7s linear infinite" }} />
+                          ) : "✕"}
+                        </button>
+                      </div>
                     </div>
                     <div style={s.tags}>
                       {split.people.map(p => (
                         <span key={p.name} style={s.tag}>
                           <span style={s.tagInitial}>{p.name?.[0]?.toUpperCase()}</span>
                           <span style={s.tagName}>{p.name}</span>
-                          <span style={s.tagOwes}>${p.owes}</span>
+                          <span style={s.tagOwes}>{currSymbol}{fmt(p.owes)}</span>
                         </span>
                       ))}
                     </div>
@@ -246,7 +340,7 @@ function Dashboard({ user, setUser }) {
         </div>
       </main>
 
-      {/* ── Footer: dark bar, green developer names, always at bottom ── */}
+      {/* ── Footer ── */}
       <footer style={s.footer}>
         <div style={s.footerInner}>
           <div style={{ display:"flex", alignItems:"center", gap:"7px" }}>
@@ -290,6 +384,15 @@ const extraCss = `
     box-shadow: 0 0 0 2px #16A34A, 0 6px 24px rgba(22,163,74,0.1);
     transform: translateY(-2px);
   }
+  .se-delete-btn {
+    transition: background 0.15s, color 0.15s, transform 0.15s;
+  }
+  .se-delete-btn:hover:not(:disabled) {
+    background: #FEE2E2 !important;
+    color: #DC2626 !important;
+    border-color: #FCA5A5 !important;
+    transform: scale(1.08);
+  }
   input[type=number]::-webkit-inner-spin-button,
   input[type=number]::-webkit-outer-spin-button { -webkit-appearance:none; margin:0; }
   input[type=number] { -moz-appearance:textfield; }
@@ -305,7 +408,6 @@ const s = {
     flexDirection: "column",
   },
 
-  /* Navbar — no margin inside, clean flush */
   navbar: {
     background: "rgba(255,255,255,0.95)",
     backdropFilter: "blur(14px)",
@@ -342,7 +444,6 @@ const s = {
     cursor:"pointer", fontFamily:T.fontSans, fontWeight:"500",
   },
 
-  /* Main — padding-top accounts for sticky navbar, no transform issues */
   main: {
     maxWidth: "1400px",
     width: "100%",
@@ -358,7 +459,6 @@ const s = {
   },
   pageSub: { fontSize:"0.88rem", color:T.inkLight, margin:0 },
 
-  /* Stat cards */
   statsRow: {
     display:"grid", gridTemplateColumns:"repeat(3, 1fr)",
     gap:"1rem", marginBottom:"1.75rem",
@@ -370,9 +470,7 @@ const s = {
     animation:"fadeUp 0.45s ease both",
     position:"relative", overflow:"hidden",
   },
-  statCardHi: {
-    borderLeft: `3px solid ${T.green}`,
-  },
+  statCardHi: { borderLeft: `3px solid ${T.green}` },
   statTopBar: {
     position:"absolute", top:0, left:0, right:0, height:"2px",
     background:"linear-gradient(90deg,#16A34A 0%,#22C55E 50%,#16A34A 100%)",
@@ -386,10 +484,8 @@ const s = {
   statLabel: { fontSize:"0.78rem", fontWeight:"500", color:T.inkMid, marginBottom:"1px" },
   statSub:   { fontSize:"0.68rem", color:T.inkFaint, letterSpacing:"0.2px" },
 
-  /* Grid */
   grid: { display:"grid", gridTemplateColumns:"1fr 1fr", gap:"1.5rem", alignItems:"start" },
 
-  /* Card */
   card: {
     background: T.surface, borderRadius:"14px",
     border:`1px solid ${T.border}`,
@@ -418,7 +514,6 @@ const s = {
     padding:"3px 10px", borderRadius:"20px", flexShrink:0,
   },
 
-  /* Form */
   field: { marginBottom:"1rem", animation:"fadeUp 0.4s ease both" },
   input: {
     width:"100%", padding:"0.62rem 0.9rem", borderRadius:"8px",
@@ -428,8 +523,25 @@ const s = {
     transition:"border-color 0.18s, box-shadow 0.18s, background 0.18s",
   },
   inputFocused: { borderColor:T.green, boxShadow:"0 0 0 3px rgba(22,163,74,0.1)", background:"#fff" },
-  currencySymbol: { position:"absolute", left:"0.75rem", top:"50%", transform:"translateY(-50%)", color:T.inkFaint, fontSize:"0.88rem", pointerEvents:"none", zIndex:1 },
+  currencySymbol: {
+    position:"absolute", left:"0.75rem", top:"50%",
+    transform:"translateY(-50%)", color:T.inkFaint,
+    fontSize:"0.88rem", pointerEvents:"none", zIndex:1,
+  },
+  currencySelect: {
+    background:T.surfaceMid, border:`1px solid ${T.border}`,
+    borderRadius:"6px", padding:"2px 6px",
+    fontSize:"0.72rem", color:T.inkMid,
+    cursor:"pointer", fontFamily:T.fontSans,
+    outline:"none",
+  },
   hint: { fontSize:"0.71rem", color:T.inkFaint, margin:"3px 0 0" },
+
+  searchIcon: {
+    position:"absolute", left:"0.65rem", top:"50%",
+    transform:"translateY(-50%)",
+    fontSize:"0.75rem", pointerEvents:"none", zIndex:1,
+  },
 
   successBox: {
     display:"flex", alignItems:"center", gap:"8px",
@@ -438,7 +550,6 @@ const s = {
     fontSize:"0.83rem", color:"#15803D", marginBottom:"1rem",
   },
 
-  /* How it works */
   howBox: { marginTop:"1.4rem", paddingTop:"1.1rem", borderTop:`1px solid ${T.surfaceMid}` },
   howTitle: { fontSize:"0.7rem", fontWeight:"600", color:T.inkFaint, textTransform:"uppercase", letterSpacing:"0.6px", margin:"0 0 0.65rem" },
   howRow: { display:"flex", alignItems:"center", gap:"9px", marginBottom:"0.45rem" },
@@ -450,7 +561,6 @@ const s = {
   },
   howText: { fontSize:"0.77rem", color:T.inkMid },
 
-  /* History */
   historyScroll: {
     maxHeight:"520px", overflowY:"auto", overflowX:"hidden",
     paddingRight:"2px", scrollbarWidth:"thin",
@@ -461,6 +571,13 @@ const s = {
   splitName: { fontSize:"0.88rem", fontWeight:"600", color:T.ink, margin:"0 0 2px", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" },
   splitDate: { fontSize:"0.7rem", color:T.inkFaint, margin:0 },
   amountBadge: { background:T.ink, color:"#fff", fontSize:"0.8rem", fontWeight:"600", padding:"3px 9px", borderRadius:"20px", flexShrink:0, whiteSpace:"nowrap" },
+  deleteBtn: {
+    width:"24px", height:"24px", borderRadius:"6px",
+    background:T.surfaceMid, border:`1px solid ${T.border}`,
+    color:T.inkLight, fontSize:"0.62rem",
+    display:"flex", alignItems:"center", justifyContent:"center",
+    cursor:"pointer", flexShrink:0, fontFamily:T.fontSans,
+  },
   tags: { display:"flex", flexWrap:"wrap", gap:"4px" },
   tag: { display:"inline-flex", alignItems:"center", gap:"4px", background:T.surfaceMid, border:`1px solid ${T.border}`, borderRadius:"6px", padding:"2px 7px", fontSize:"0.74rem" },
   tagInitial: { width:"15px", height:"15px", borderRadius:"50%", background:T.ink, color:"#fff", fontSize:"0.52rem", fontWeight:"700", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 },
@@ -470,12 +587,7 @@ const s = {
   skeleton: { height:"78px", borderRadius:"8px", background:"linear-gradient(90deg,#f0ede8 25%,#e8e5df 50%,#f0ede8 75%)", backgroundSize:"200% 100%", animation:"shimmerLine 1.4s linear infinite, skeletonPulse 1.4s ease infinite" },
   empty: { textAlign:"center", padding:"3rem 1rem" },
 
-  /* Footer — dark, always anchored at bottom, developer names in green */
-  footer: {
-    background: T.ink,
-    marginTop: "auto",
-    flexShrink: 0,
-  },
+  footer: { background: T.ink, marginTop: "auto", flexShrink: 0 },
   footerInner: {
     maxWidth: "1400px",
     margin: "0 auto",

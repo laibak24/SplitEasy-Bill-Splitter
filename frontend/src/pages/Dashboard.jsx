@@ -10,21 +10,23 @@ const CURRENCIES = [
 ];
 
 function Dashboard({ user, setUser, setPage }) {
-  const [splits, setSplits]       = useState([]);
-  const [billName, setBillName]   = useState("");
-  const [amount, setAmount]       = useState("");
-  const [people, setPeople]       = useState("");
-  const [currency, setCurrency]   = useState(() => localStorage.getItem("se_currency") || "USD");
-  const [error, setError]         = useState("");
-  const [success, setSuccess]     = useState("");
-  const [loading, setLoading]     = useState(false);
-  const [fetching, setFetching]   = useState(true);
-  const [deleting, setDeleting]   = useState(null);
-  const [focused, setFocused]     = useState(null);
-  const [visible, setVisible]     = useState(false);
-  const [search, setSearch]       = useState("");
-  const historyRef                = useRef(null);
-  const API_URL                   = import.meta.env.VITE_API_URL;
+  const [splits, setSplits]             = useState([]);
+  const [billName, setBillName]         = useState("");
+  const [amount, setAmount]             = useState("");
+  const [people, setPeople]             = useState("");
+  const [currency, setCurrency]         = useState(() => localStorage.getItem("se_currency") || "USD");
+  const [error, setError]               = useState("");
+  const [success, setSuccess]           = useState("");
+  const [loading, setLoading]           = useState(false);
+  const [fetching, setFetching]         = useState(true);
+  const [deleting, setDeleting]         = useState(null);
+  const [focused, setFocused]           = useState(null);
+  const [visible, setVisible]           = useState(false);
+  const [search, setSearch]             = useState("");
+  const [splitType, setSplitType]       = useState("equal");
+  const [adjustments, setAdjustments]   = useState({}); // {name: "" | delta_string}, "" = auto
+  const historyRef                      = useRef(null);
+  const API_URL                         = import.meta.env.VITE_API_URL;
 
   useEffect(() => { const t = setTimeout(() => setVisible(true), 60); return () => clearTimeout(t); }, []);
 
@@ -48,23 +50,80 @@ function Dashboard({ user, setUser, setPage }) {
 
   useEffect(() => { fetchSplits(); }, []);
 
+  // Keep adjustment keys in sync with names field
+  useEffect(() => {
+    if (splitType !== "unequal") return;
+    const names = people.split(",").map(p => p.trim()).filter(Boolean);
+    setAdjustments(prev => {
+      const next = {};
+      names.forEach(n => { next[n] = prev[n] ?? ""; }); // "" = auto (unmodified)
+      return next;
+    });
+  }, [people, splitType]);
+
+  // ── Unequal split computed values ────────────────────────────────────────
+  const unequalNames  = people.split(",").map(p => p.trim()).filter(Boolean);
+  const nPeople       = unequalNames.length;
+  const totalNum      = Number(amount) || 0;
+  const equalShare    = nPeople > 0 ? Math.round((totalNum / nPeople) * 100) / 100 : 0;
+
+  // People with an explicit numeric delta typed in
+  const modifiedNames = unequalNames.filter(name =>
+    adjustments[name] !== "" && adjustments[name] !== undefined && !isNaN(Number(adjustments[name]))
+  );
+  const autoNames     = unequalNames.filter(name => !modifiedNames.includes(name));
+
+  const modifiedSum   = modifiedNames.reduce((acc, name) =>
+    acc + Math.round((equalShare + Number(adjustments[name])) * 100) / 100, 0
+  );
+  const autoTotal     = Math.round((totalNum - modifiedSum) * 100) / 100;
+  const autoShare     = autoNames.length > 0
+    ? Math.round((autoTotal / autoNames.length) * 100) / 100
+    : 0;
+
+  const getPersonFinal = (name) =>
+    modifiedNames.includes(name)
+      ? Math.round((equalShare + Number(adjustments[name])) * 100) / 100
+      : autoShare;
+
+  const adjOverflow   = autoTotal < -0.02;
+  const hasNegative   = modifiedNames.some(name => getPersonFinal(name) < 0);
+  // ────────────────────────────────────────────────────────────────────────
+
   const handleCreate = async () => {
     setError(""); setSuccess("");
     if (!billName.trim())                                return setError("Bill name is required");
     if (!amount || isNaN(amount) || Number(amount) < 0) return setError("Enter a valid amount");
-    const peopleList = people.split(",").map(p => p.trim()).filter(Boolean);
-    if (peopleList.length === 0)                         return setError("Add at least one person");
+
+    let apiPeople;
+
+    if (splitType === "equal") {
+      const peopleList = people.split(",").map(p => p.trim()).filter(Boolean);
+      if (peopleList.length === 0) return setError("Add at least one person");
+      apiPeople = peopleList;
+    } else {
+      if (unequalNames.length === 0)  return setError("Add at least one person");
+      if (adjOverflow)                return setError(`Adjustments exceed the total by ${currSymbol}${fmt(Math.abs(autoTotal))}`);
+      if (hasNegative)                return setError("No person can have a negative share");
+
+      // Build per-person amounts; adjust last person to absorb rounding
+      const amounts = unequalNames.map(name => ({ name, amount: getPersonFinal(name) }));
+      const sumWithoutLast = amounts.slice(0, -1).reduce((acc, p) => acc + p.amount, 0);
+      amounts[amounts.length - 1].amount = Math.round((totalNum - sumWithoutLast) * 100) / 100;
+      apiPeople = amounts;
+    }
+
     setLoading(true);
     try {
       const token = await getToken();
       const res   = await fetch(`${API_URL}/splits`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ billName, totalAmount: Number(amount), people: peopleList }),
+        body: JSON.stringify({ billName, totalAmount: totalNum, people: apiPeople, splitType }),
       });
       if (res.status === 201) {
         setSuccess("Split created! 🎉");
-        setBillName(""); setAmount(""); setPeople("");
+        setBillName(""); setAmount(""); setPeople(""); setAdjustments({}); setSplitType("equal");
         await fetchSplits();
         setTimeout(() => setSuccess(""), 4000);
         if (historyRef.current) historyRef.current.scrollTo({ top: 0, behavior: "smooth" });
@@ -176,7 +235,7 @@ function Dashboard({ user, setUser, setPage }) {
             <div style={s.cardHead}>
               <div>
                 <h2 style={s.cardTitle}>New Split</h2>
-                <p style={s.cardSub}>Equal split, instantly calculated</p>
+                <p style={s.cardSub}>{splitType === "equal" ? "Equal split, instantly calculated" : "Adjust from equal share — rest auto-balances"}</p>
               </div>
               <div style={s.plusBadge}>+</div>
             </div>
@@ -199,11 +258,7 @@ function Dashboard({ user, setUser, setPage }) {
             <div style={{ ...s.field, animationDelay:"0.08s" }}>
               <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"0.4rem" }}>
                 <Label>Total amount</Label>
-                <select
-                  value={currency}
-                  onChange={handleCurrencyChange}
-                  style={s.currencySelect}
-                >
+                <select value={currency} onChange={handleCurrencyChange} style={s.currencySelect}>
                   {CURRENCIES.map(c => (
                     <option key={c.code} value={c.code}>{c.label}</option>
                   ))}
@@ -227,18 +282,142 @@ function Dashboard({ user, setUser, setPage }) {
               <p style={s.hint}>Separate names with commas</p>
             </div>
 
-            <div style={{ animation:"fadeUp 0.4s ease 0.16s both" }}>
+            {/* ── Split Type Toggle ── */}
+            <div style={{ ...s.field, animationDelay:"0.14s" }}>
+              <Label>Split type</Label>
+              <div style={s.splitToggle}>
+                <button
+                  className="se-toggle-btn"
+                  style={{ ...s.toggleBtn, ...(splitType === "equal" ? s.toggleBtnActive : {}) }}
+                  onClick={() => setSplitType("equal")}
+                  type="button"
+                >
+                  = Equal
+                </button>
+                <button
+                  className="se-toggle-btn"
+                  style={{ ...s.toggleBtn, ...(splitType === "unequal" ? s.toggleBtnActive : {}) }}
+                  onClick={() => setSplitType("unequal")}
+                  type="button"
+                >
+                  ≠ Unequal
+                </button>
+              </div>
+            </div>
+
+            {/* ── Unequal Adjustment Panel ── */}
+            {splitType === "unequal" && (
+              <div style={{ ...s.field, animationDelay:"0.16s" }}>
+                {/* Header: label + equal share reference */}
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"0.5rem" }}>
+                  <Label>Adjustments from equal share</Label>
+                  {amount && nPeople > 0 && (
+                    <span style={s.equalPill}>= {currSymbol}{fmt(equalShare)} each</span>
+                  )}
+                </div>
+
+                {unequalNames.length === 0 ? (
+                  <p style={{ ...s.hint, fontStyle:"italic" }}>Enter names above to set adjustments</p>
+                ) : (
+                  <>
+                    {/* Column headers */}
+                    <div style={s.adjHeader}>
+                      <span style={{ flex:1 }} />
+                      <span style={s.adjHeaderCell}>±{currSymbol} adjust</span>
+                      <span style={s.adjHeaderCell}>pays</span>
+                    </div>
+
+                    <div style={{ display:"flex", flexDirection:"column", gap:"5px" }}>
+                      {unequalNames.map(name => {
+                        const isModified = modifiedNames.includes(name);
+                        const finalAmt   = getPersonFinal(name);
+                        const adj        = adjustments[name] ?? "";
+
+                        return (
+                          <div key={name} style={s.shareRow}>
+                            {/* Name */}
+                            <span style={s.shareName}>
+                              <span style={s.shareInitial}>{name[0]?.toUpperCase()}</span>
+                              {name}
+                            </span>
+
+                            {/* Adjustment input */}
+                            <div style={{ position:"relative", width:"88px", flexShrink:0 }}>
+                              <span style={s.adjPrefix}>±{currSymbol}</span>
+                              <input
+                                className="se-input"
+                                style={{
+                                  ...s.shareInput,
+                                  ...(focused === `sh_${name}` ? s.inputFocused : {}),
+                                  paddingLeft: "1.9rem",
+                                  color: Number(adj) > 0 ? T.green : Number(adj) < 0 ? "#DC2626" : T.inkFaint,
+                                }}
+                                type="number"
+                                placeholder="0"
+                                value={adj}
+                                onChange={e => setAdjustments(prev => ({ ...prev, [name]: e.target.value }))}
+                                onFocus={() => setFocused(`sh_${name}`)}
+                                onBlur={() => setFocused(null)}
+                              />
+                            </div>
+
+                            {/* Final amount */}
+                            <div style={s.finalAmtCell}>
+                              <span style={{
+                                ...s.finalAmt,
+                                color: finalAmt < 0 ? "#DC2626" : isModified ? T.ink : T.inkFaint,
+                              }}>
+                                {currSymbol}{fmt(finalAmt)}
+                              </span>
+                              {!isModified && (
+                                <span style={s.autoLabel}>auto</span>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* Status bar */}
+                    <div style={{
+                      ...s.balanceBar,
+                      background:  adjOverflow || hasNegative ? "#FEF2F2" : T.greenFaint,
+                      borderColor: adjOverflow || hasNegative ? "#FECACA" : T.greenMid,
+                      marginTop: "6px",
+                    }}>
+                      {adjOverflow ? (
+                        <span style={{ color:"#991B1B", fontSize:"0.76rem" }}>
+                          Over total by {currSymbol}{fmt(Math.abs(autoTotal))} — reduce adjustments
+                        </span>
+                      ) : hasNegative ? (
+                        <span style={{ color:"#991B1B", fontSize:"0.76rem" }}>
+                          A share went negative — reduce that adjustment
+                        </span>
+                      ) : (
+                        <span style={{ color:T.green, fontWeight:"600", fontSize:"0.76rem" }}>✓ Always balanced</span>
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+
+            <div style={{ animation:"fadeUp 0.4s ease 0.18s both" }}>
               <PrimaryBtn onClick={handleCreate} disabled={loading} loading={loading} label="Split bill" loadingLabel="Creating…" />
             </div>
 
             {/* How it works */}
             <div style={s.howBox}>
               <p style={s.howTitle}>How it works</p>
-              {[
+              {(splitType === "equal" ? [
                 "Enter the bill name & total amount",
                 "Add everyone's name, separated by commas",
                 "We calculate equal shares instantly",
-              ].map((step, i) => (
+              ] : [
+                "Enter names — everyone starts at an equal share",
+                "Type a + or − adjustment for whoever pays differently",
+                "Everyone else's share auto-balances to cover the rest",
+              ]).map((step, i) => (
                 <div key={i} style={s.howRow}>
                   <div style={s.howNum}>{i + 1}</div>
                   <span style={s.howText}>{step}</span>
@@ -302,7 +481,12 @@ function Dashboard({ user, setUser, setPage }) {
                   }}>
                     <div style={s.splitRow}>
                       <div style={{ flex:1, minWidth:0 }}>
-                        <p style={s.splitName}>{split.billName}</p>
+                        <div style={{ display:"flex", alignItems:"center", gap:"5px", marginBottom:"2px", flexWrap:"wrap" }}>
+                          <p style={s.splitName}>{split.billName}</p>
+                          {split.splitType === "unequal" && (
+                            <span style={s.unequalBadge}>≠ Unequal</span>
+                          )}
+                        </div>
                         <p style={s.splitDate}>
                           {new Date(split.createdAt).toLocaleDateString("en-US",{ month:"short", day:"numeric", year:"numeric" })}
                         </p>
@@ -327,6 +511,9 @@ function Dashboard({ user, setUser, setPage }) {
                         <span key={p.name} style={s.tag}>
                           <span style={s.tagInitial}>{p.name?.[0]?.toUpperCase()}</span>
                           <span style={s.tagName}>{p.name}</span>
+                          {p.percentage != null && split.splitType === "unequal" && (
+                            <span style={s.tagPct}>{p.percentage}%</span>
+                          )}
                           <span style={s.tagOwes}>{currSymbol}{fmt(p.owes)}</span>
                         </span>
                       ))}
@@ -384,15 +571,14 @@ const extraCss = `
     box-shadow: 0 0 0 2px #16A34A, 0 6px 24px rgba(22,163,74,0.1);
     transform: translateY(-2px);
   }
-  .se-delete-btn {
-    transition: background 0.15s, color 0.15s, transform 0.15s;
-  }
+  .se-delete-btn { transition: background 0.15s, color 0.15s, transform 0.15s; }
   .se-delete-btn:hover:not(:disabled) {
     background: #FEE2E2 !important;
     color: #DC2626 !important;
     border-color: #FCA5A5 !important;
     transform: scale(1.08);
   }
+  .se-toggle-btn { transition: background 0.15s, color 0.15s, box-shadow 0.15s; }
   input[type=number]::-webkit-inner-spin-button,
   input[type=number]::-webkit-outer-spin-button { -webkit-appearance:none; margin:0; }
   input[type=number] { -moz-appearance:textfield; }
@@ -550,6 +736,87 @@ const s = {
     fontSize:"0.83rem", color:"#15803D", marginBottom:"1rem",
   },
 
+  // Split type toggle
+  splitToggle: {
+    display:"flex", gap:"4px",
+    background:T.surfaceMid, border:`1px solid ${T.border}`,
+    padding:"3px", borderRadius:"8px",
+  },
+  toggleBtn: {
+    flex:1, padding:"0.35rem 0.7rem", borderRadius:"6px",
+    border:"none", background:"transparent",
+    fontSize:"0.8rem", color:T.inkLight, cursor:"pointer",
+    fontFamily:T.fontSans, fontWeight:"500",
+  },
+  toggleBtnActive: {
+    background:"#fff", color:T.ink,
+    boxShadow:"0 1px 3px rgba(0,0,0,0.1)", fontWeight:"600",
+  },
+
+  // Equal share reference pill
+  equalPill: {
+    background:T.surfaceMid, border:`1px solid ${T.border}`,
+    borderRadius:"4px", fontSize:"0.68rem", color:T.inkMid,
+    padding:"2px 7px", fontWeight:"500", flexShrink:0,
+  },
+
+  // Adjustment column headers
+  adjHeader: {
+    display:"flex", alignItems:"center", gap:"6px",
+    marginBottom:"4px",
+  },
+  adjHeaderCell: {
+    fontSize:"0.63rem", color:T.inkFaint, fontWeight:"500",
+    textTransform:"uppercase", letterSpacing:"0.3px",
+    width:"88px", flexShrink:0, textAlign:"center",
+  },
+
+  // Per-person adjustment row
+  shareRow: {
+    display:"flex", alignItems:"center", gap:"6px",
+    padding:"5px 8px",
+    background:T.surfaceWarm, borderRadius:"7px", border:`1px solid ${T.border}`,
+  },
+  shareName: {
+    display:"flex", alignItems:"center", gap:"6px",
+    fontSize:"0.82rem", color:T.ink, fontWeight:"500",
+    flex:1, minWidth:0,
+    overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap",
+  },
+  shareInitial: {
+    width:"18px", height:"18px", borderRadius:"50%",
+    background:T.ink, color:"#fff",
+    fontSize:"0.56rem", fontWeight:"700",
+    display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0,
+  },
+  shareInput: {
+    width:"100%", padding:"0.32rem 0.5rem", borderRadius:"6px",
+    border:`1px solid ${T.border}`, fontSize:"0.8rem",
+    background:"#fff", outline:"none",
+    boxSizing:"border-box", fontFamily:T.fontSans,
+    transition:"border-color 0.18s, box-shadow 0.18s, color 0.15s",
+  },
+  adjPrefix: {
+    position:"absolute", left:"0.45rem", top:"50%",
+    transform:"translateY(-50%)", color:T.inkFaint,
+    fontSize:"0.72rem", pointerEvents:"none", zIndex:1,
+    userSelect:"none",
+  },
+  finalAmtCell: {
+    display:"flex", flexDirection:"column", alignItems:"flex-end",
+    width:"68px", flexShrink:0,
+  },
+  finalAmt: {
+    fontSize:"0.8rem", fontWeight:"600", lineHeight:1,
+  },
+  autoLabel: {
+    fontSize:"0.6rem", color:T.inkFaint, fontStyle:"italic", lineHeight:1, marginTop:"2px",
+  },
+  balanceBar: {
+    display:"flex", alignItems:"center", justifyContent:"center",
+    padding:"0.38rem 0.7rem", borderRadius:"6px", border:"1px solid",
+  },
+
   howBox: { marginTop:"1.4rem", paddingTop:"1.1rem", borderTop:`1px solid ${T.surfaceMid}` },
   howTitle: { fontSize:"0.7rem", fontWeight:"600", color:T.inkFaint, textTransform:"uppercase", letterSpacing:"0.6px", margin:"0 0 0.65rem" },
   howRow: { display:"flex", alignItems:"center", gap:"9px", marginBottom:"0.45rem" },
@@ -568,7 +835,7 @@ const s = {
   },
   splitItem: { paddingBottom:"0.9rem", marginBottom:"0.9rem", borderBottom:`1px solid ${T.surfaceMid}` },
   splitRow: { display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap:"0.6rem", marginBottom:"0.5rem" },
-  splitName: { fontSize:"0.88rem", fontWeight:"600", color:T.ink, margin:"0 0 2px", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" },
+  splitName: { fontSize:"0.88rem", fontWeight:"600", color:T.ink, margin:0, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" },
   splitDate: { fontSize:"0.7rem", color:T.inkFaint, margin:0 },
   amountBadge: { background:T.ink, color:"#fff", fontSize:"0.8rem", fontWeight:"600", padding:"3px 9px", borderRadius:"20px", flexShrink:0, whiteSpace:"nowrap" },
   deleteBtn: {
@@ -583,6 +850,13 @@ const s = {
   tagInitial: { width:"15px", height:"15px", borderRadius:"50%", background:T.ink, color:"#fff", fontSize:"0.52rem", fontWeight:"700", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 },
   tagName: { color:T.inkMid, fontWeight:"500" },
   tagOwes: { color:T.green, fontWeight:"700", fontSize:"0.73rem" },
+  tagPct:  { color:T.inkFaint, fontSize:"0.68rem", fontWeight:"400" },
+  unequalBadge: {
+    background:"#EEF2FF", color:"#4338CA",
+    border:"1px solid #C7D2FE",
+    fontSize:"0.63rem", fontWeight:"600",
+    padding:"2px 6px", borderRadius:"4px", flexShrink:0,
+  },
 
   skeleton: { height:"78px", borderRadius:"8px", background:"linear-gradient(90deg,#f0ede8 25%,#e8e5df 50%,#f0ede8 75%)", backgroundSize:"200% 100%", animation:"shimmerLine 1.4s linear infinite, skeletonPulse 1.4s ease infinite" },
   empty: { textAlign:"center", padding:"3rem 1rem" },

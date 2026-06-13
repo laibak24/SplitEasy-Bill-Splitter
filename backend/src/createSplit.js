@@ -1,7 +1,7 @@
 const { DynamoDBClient } = require("@aws-sdk/client-dynamodb");
 const { DynamoDBDocumentClient, PutCommand } = require("@aws-sdk/lib-dynamodb");
 const crypto = require("crypto");
-const { calculateSplit } = require("./calculate");
+const { calculateSplit, calculateUnequalSplit } = require("./calculate");
 
 const client = new DynamoDBClient({});
 const dynamoDb = DynamoDBDocumentClient.from(client);
@@ -16,7 +16,7 @@ exports.handler = async (event) => {
 
     const body = JSON.parse(event.body || "{}");
 
-    const { billName, totalAmount, people } = body;
+    const { billName, totalAmount, people, splitType = "equal" } = body;
 
     if (!billName || billName.trim() === "") {
       return response(400, { message: "Bill name is required" });
@@ -30,7 +30,13 @@ exports.handler = async (event) => {
       return response(400, { message: "No people provided" });
     }
 
-    const calculatedSplit = calculateSplit(Number(totalAmount), people);
+    if (splitType !== "equal" && splitType !== "unequal") {
+      return response(400, { message: "splitType must be 'equal' or 'unequal'" });
+    }
+
+    const calculatedSplit = splitType === "unequal"
+      ? calculateUnequalSplit(Number(totalAmount), people)
+      : calculateSplit(Number(totalAmount), people);
 
     const split = {
       userId,
@@ -38,6 +44,7 @@ exports.handler = async (event) => {
       billName: billName.trim(),
       totalAmount: Number(totalAmount),
       people: calculatedSplit,
+      splitType,
       createdAt: new Date().toISOString()
     };
 
